@@ -397,6 +397,4 @@ for _, v in ipairs(turboredis.COMMANDS) do
 	end
 end
 
-
-
 return turboredis
