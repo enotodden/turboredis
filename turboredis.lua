@@ -16,7 +16,6 @@ turboredis.COMMANDS = {
     "BITOP OR",
     "BITOP XOR",
     "BITOP NOT",
-    -- Commands that block, not implemented yet:
     -- "BLPOP",
     -- "BRPOP",
     -- "BRPOPLPUSH", 
@@ -80,7 +79,7 @@ turboredis.COMMANDS = {
     "LTRIM",
     "MGET",
     "MIGRATE",
-    -- MONITOR, Custom Handling
+    -- MONITOR
     "MOVE",
     "MSET",
     "MSETNX",
@@ -91,11 +90,11 @@ turboredis.COMMANDS = {
     "PEXPIREAT",
     "PING",
     "PSETEX",
-    -- PSUBSCRIBE, Custom Handling
+    -- PSUBSCRIBE
     "PUBSUB",
     "PTTL",
     "PUBLISH",
-    -- PUNSUBSCRIBE, Custom Handling
+    -- PUNSUBSCRIBE
     "QUIT",
     "RANDOMKEY",
     "RENAME",
@@ -134,14 +133,14 @@ turboredis.COMMANDS = {
     "SRANDMEMBER",
     "SREM",
     "STRLEN",
-    -- SUBSCRIBE, Custom handling
+    -- SUBSCRIBE
     "SUNION",
     "SUNIONSTORE",
     "SYNC",
     "TIME",
     "TTL",
     "TYPE",
-    -- UNSUBSCRIBE, Custom handling (not yet implemented)
+    -- UNSUBSCRIBE
     "UNWATCH",
     "ZADD",
     "ZCARD",
@@ -234,7 +233,8 @@ function turboredis.read_multibulk_reply(iostream, num_replies)
             elseif prefix == "-" then
                 table.insert(out, false)
             else
-                -- FIXME: Handle this..
+                table.insert(out, nil, "Could not parse multibulk reply " ..
+                    "from redis")
             end
 
             if #out == num_replies then
@@ -250,17 +250,36 @@ function turboredis.read_multibulk_reply(iostream, num_replies)
 end
 
 turboredis.Command = class("Command")
-function turboredis.Command:initialize(cmd, iostream, resformatter)
+function turboredis.Command:initialize(cmd, iostream)
     self.ioloop = turbo.ioloop.instance()
     self.cmd = cmd
     self.cmdstr = turboredis.pack(cmd)
     self.iostream = iostream
 end
 
+function turboredis.Command:_format_res(res)
+    local out = res
+    if self.cmd[1] == "CONFIG" then
+        if self.cmd[2] == "GET" then
+            out = {turboredis.from_kvlist(res[1])}
+        end
+    elseif self.cmd[1] == "HGETALL" then
+        out = {turboredis.from_kvlist(res[1])}
+    else
+        if self.cmd[1] == "EXISTS" or self.cmd[1] == "EXPIRE" or 
+            self.cmd[1] == "EXPIREAT" or self.cmd[1] == "HEXISTS" or
+            self.cmd[1] == "HSETNX" then
+            out = {res[1] == 1}
+            return out
+        end
+    end
+    return out
+end
+
 function turboredis.Command:_handle_reply(prefix)
     function done(arg)
         self.coctx:set_state(turbo.coctx.states.DEAD)
-        self.coctx:set_arguments(arg)
+        self.coctx:set_arguments(self:_format_res(arg))
         self.coctx:finalize_context()
     end
 
@@ -301,7 +320,7 @@ function turboredis.Command:_handle_reply(prefix)
             end
         end)
     else
-        -- wtf??
+        done({nil, "Could not parse reply from redis."})
     end
 end
 
