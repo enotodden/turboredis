@@ -7,22 +7,52 @@ local LuaUnit = require("luaunit")
 local turboredis = require("turboredis")
 local yield = coroutine.yield
 local ffi = require("ffi")
+local os = require("os")
 ffi.cdef([[
 unsigned int sleep(unsigned int seconds);
 ]])
 
--- Use --fast or -f to not run tests that use sleep (expire etc.)
-local run_slow_tests = true
-if arg[1] == "--fast" or arg[1] == "-f" then
-    print("Not running slow tests")
-    run_slow_tests = false
+local usage = [[
+test.lua [-f/--fast] [--redis-host REDIS_HOST] [--redis-port REDIS_PORT] [-h/--help]
+]]
+
+local options = {
+    host="127.0.0.1",
+    port=6379,
+    fast=false
+}
+
+local i = 1
+while i <= #arg do
+    if arg[i] == "-f" or arg[i] == "--fast" then
+        options.fast = true
+    elseif arg[i] == "--redis-host" then
+        options.host = arg[i+1]
+        if options.host == nil then
+            print("Invalid option supplied to --redis-port")
+            os.exit(1)
+        end
+        i = i + 1
+    elseif arg[i] == "--redis-port" then
+        options.port = tonumber(arg[i+1])
+        if options.port == nil then
+            print("Invalid option supplied to --redis-port")
+            os.exit(1)
+        end
+        i = i + 1
+    elseif arg[i] == "-h" or arg[i] == "--help" then
+        print(usage)
+        os.exit()
+    end
+    i = i+1
 end
+arg = {}
 
 TestTurboRedis = {}
 
 function TestTurboRedis:setUp()
     local r
-    self.con = turboredis.Connection:new()
+    self.con = turboredis.Connection:new(options.host, options.port)
     r = yield(self.con:connect())
     assert(r)
     r = yield(self.con:set("test", "123"))
@@ -177,7 +207,7 @@ function TestTurboRedis:test_exists()
     assert(not r)
 end
 
-if run_slow_tests then
+if not options.fast then
     function TestTurboRedis:test_expire()
         local r
         r, d = yield(self.con:expire("test", 3))
@@ -425,7 +455,7 @@ end
 
 
 function runtests()
-    LuaUnit:run()
+    LuaUnit:run("TestTurboRedis")
     turbo.ioloop.instance():close()
 end
 
