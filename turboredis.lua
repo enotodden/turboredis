@@ -284,11 +284,13 @@ function turboredis.Command:_format_res(res)
         elseif self.cmd[1] == "HGETALL" then
             out = {turboredis.from_kvlist(res[1])}
         else
-            if self.cmd[1] == "EXISTS" or self.cmd[1] == "EXPIRE" or 
-                self.cmd[1] == "EXPIREAT" or self.cmd[1] == "HEXISTS" or
-                self.cmd[1] == "HSETNX" then
-                out = {res[1] == 1}
-                return out
+            for _, c in ipairs({"EXISTS", "EXPIRE",
+                                "EXPIREAT", "HEXISTS",
+                                "HSETNX", "MSETNX"}) do
+                if self.cmd[1] == c then
+                    out = {res[1] == 1}
+                    return out 
+                end
             end
         end
     end
@@ -351,7 +353,6 @@ function turboredis.Command:execute()
     self.coctx:set_state(turbo.coctx.states.WAIT_COND)
     return self.coctx
 end
-
 
 
 turboredis.BaseConnection = class("BaseConnection")
