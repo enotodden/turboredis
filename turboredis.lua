@@ -3,7 +3,13 @@ local middleclass =  require("turbo.3rdparty.middleclass")
 local ffi = require("ffi")
 local yield = coroutine.yield
 
-turboredis = {} 
+turboredis = {
+    -- If purist is set to true
+    -- turboredis will not convert key-value pair lists to dicts
+    -- and will not convert integer replies from certain commands to
+    -- booleans for convenience.
+    purist=false 
+} 
 
 turboredis.COMMANDS = {
     "APPEND",
@@ -24,12 +30,12 @@ turboredis.COMMANDS = {
     "CLIENT GETNAME",
     "CLIENT SETNAME",
     "CONFIG GET",
-    "CONFIG REWRITE",
+    -- "CONFIG REWRITE",
     "CONFIG SET",
     "CONFIG RESETSTAT",
     "DBSIZE",
     -- "DEBUG OBJECT",
-    "DEBUG SEGFAULT",
+    -- "DEBUG SEGFAULT",
     "DECR",
     "DECRBY",
     "DEL",
@@ -184,7 +190,7 @@ function turboredis.flatten(t)
     if type(t) ~= "table" then return {t} end
     local flat_t = {}
     for _, elem in ipairs(t) do
-        for _, val in ipairs(flatten(elem)) do
+        for _, val in ipairs(turboredis.flatten(elem)) do
             flat_t[#flat_t + 1] = val
         end
     end
@@ -270,18 +276,20 @@ end
 
 function turboredis.Command:_format_res(res)
     local out = res
-    if self.cmd[1] == "CONFIG" then
-        if self.cmd[2] == "GET" then
+    if not turboredis.purist then
+        if self.cmd[1] == "CONFIG" then
+            if self.cmd[2] == "GET" then
+                out = {turboredis.from_kvlist(res[1])}
+            end
+        elseif self.cmd[1] == "HGETALL" then
             out = {turboredis.from_kvlist(res[1])}
-        end
-    elseif self.cmd[1] == "HGETALL" then
-        out = {turboredis.from_kvlist(res[1])}
-    else
-        if self.cmd[1] == "EXISTS" or self.cmd[1] == "EXPIRE" or 
-            self.cmd[1] == "EXPIREAT" or self.cmd[1] == "HEXISTS" or
-            self.cmd[1] == "HSETNX" then
-            out = {res[1] == 1}
-            return out
+        else
+            if self.cmd[1] == "EXISTS" or self.cmd[1] == "EXPIRE" or 
+                self.cmd[1] == "EXPIREAT" or self.cmd[1] == "HEXISTS" or
+                self.cmd[1] == "HSETNX" then
+                out = {res[1] == 1}
+                return out
+            end
         end
     end
     return out
@@ -399,9 +407,10 @@ function turboredis.BaseConnection:connect(timeout)
         return -1 --wtf
     end
     self.cmd = cmd 
-    timeout = (timeout or self.connect_timeout) * 1000 + turbo.util.gettimeofday()
-    self.connect_timeout_ref = self.ioloop:add_timeout(timeout, self._handle_connect_timeout, self)
-
+    timeout = (timeout or self.connect_timeout) * 1000 +
+        turbo.util.gettimeofday()
+    self.connect_timeout_ref = self.ioloop:add_timeout(timeout,
+        self._handle_connect_timeout, self)
     self.connect_coctx:set_state(turbo.coctx.states.WAIT_COND)
     return self.connect_coctx
 end
