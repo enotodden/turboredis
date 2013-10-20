@@ -180,6 +180,17 @@ function turboredis.from_kvlist(inp)
     return out
 end
 
+function turboredis.flatten(t)
+    if type(t) ~= "table" then return {t} end
+    local flat_t = {}
+    for _, elem in ipairs(t) do
+        for _, val in ipairs(flatten(elem)) do
+            flat_t[#flat_t + 1] = val
+        end
+    end
+    return flat_t
+end
+
 function turboredis.read_bulk_reply(iostream, len)
     local ctx = turbo.coctx.CoroutineContext:new(iostream.io_loop)
     iostream:read_bytes(len, function (data) 
@@ -413,21 +424,8 @@ end
 
 turboredis.Connection = class("Connection", turboredis.BaseConnection)
 for _, v in ipairs(turboredis.COMMANDS) do
-
-    function flatten(t)
-        if type(t) ~= "table" then return {t} end
-        local flat_t = {}
-        for _, elem in ipairs(t) do
-            for _, val in ipairs(flatten(elem)) do
-                flat_t[#flat_t + 1] = val
-            end
-        end
-        return flat_t
-    end
-
-
     turboredis.Connection[v:lower():gsub(" ", "_")] = function(self, ...)
-        local cmd = flatten({v:split(" "), ...})
+        local cmd = turboredis.flatten({v:split(" "), ...})
         return self:run(cmd)
     end
 end
