@@ -7,10 +7,16 @@ local LuaUnit = require("luaunit")
 local turboredis = require("turboredis")
 local yield = coroutine.yield
 local ffi = require("ffi")
-
 ffi.cdef([[
 unsigned int sleep(unsigned int seconds);
 ]])
+
+-- Use --fast or -f to not run tests that use sleep (expire etc.)
+local run_slow_tests = true
+if arg[1] == "--fast" or arg[1] == "-f" then
+    print("Not running slow tests")
+    run_slow_tests = false
+end
 
 TestTurboRedis = {}
 
@@ -101,7 +107,7 @@ function TestTurboRedis:test_config()
     assert(r)
     r = yield(self.con:config_get("slowlog-max-len"))
     assert(r["slowlog-max-len"] == tostring(ml))
-    
+
 end
 
 function TestTurboRedis:test_dbsize()
@@ -171,15 +177,16 @@ function TestTurboRedis:test_exists()
     assert(not r)
 end
 
-function TestTurboRedis:t_est_expire()
-    local r
-    r, d = yield(self.con:expire("test", 3))
-    assert(r)
-    ffi.C.sleep(5)
-    r = yield(self.con:exists("test"))
-    assert(not r)
+if run_slow_tests then
+    function TestTurboRedis:test_expire()
+        local r
+        r, d = yield(self.con:expire("test", 3))
+        assert(r)
+        ffi.C.sleep(5)
+        r = yield(self.con:exists("test"))
+        assert(not r)
+    end
 end
-
 -- TODO: EXPIREAT
 
 -- TODO: FLUSHALL
@@ -197,7 +204,7 @@ function TestTurboRedis:test_flushdb()
     r = yield(self.con:set("test4", "123"))
     assert(r)
     r = yield(self.con:dbsize())
-    assert(r == 4) 
+    assert(r == 4)
     r = yield(self.con:flushdb())
     assert(r)
     r = yield(self.con:dbsize())
@@ -405,6 +412,7 @@ end
 -- TODO: OBJECT
 
 function TestTurboRedis:test_persist()
+
 end
 
 function TestTurboRedis:test_select()
@@ -416,12 +424,11 @@ function TestTurboRedis:test_select()
 end
 
 
-
-
 function runtests()
     LuaUnit:run()
     turbo.ioloop.instance():close()
 end
+
 
 turbo.ioloop.instance():add_callback(runtests)
 turbo.ioloop.instance():start()
