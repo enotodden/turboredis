@@ -356,12 +356,13 @@ end
 
 
 turboredis.BaseConnection = class("BaseConnection")
-function turboredis.BaseConnection:initialize(host, port)
+function turboredis.BaseConnection:initialize(host, port, kwargs)
+    kwargs = kwargs or {}
     self.host = host or "127.0.0.1"
     self.port = port or 6379
     self.family = 2
-    self.ioloop = io_loop or turbo.ioloop.instance()
-    self.connect_timeout = 5
+    self.ioloop = kwargs.io_loop or turbo.ioloop.instance()
+    self.connect_timeout = kwargs.connect_timeout or 5
     self.authenticated = false
     self.selected = false
     self.pwd = nil
