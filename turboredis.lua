@@ -210,10 +210,10 @@ function turboredis.read_bulk_reply(iostream, len)
     return ctx
 end
 
--- Wraps read_until_pattern in coctx
-function turboredis.read_until_pattern(iostream, pattern)
+-- Wraps read_until in coctx
+function turboredis.read_until(iostream, seq)
     local ctx = turbo.coctx.CoroutineContext:new(iostream.io_loop)
-    iostream:read_until_pattern(pattern, function (data) 
+    iostream:read_until(seq, function (data) 
         ctx:set_state(turbo.coctx.states.DEAD)
         ctx:set_arguments({data})
         ctx:finalize_context()
@@ -230,7 +230,7 @@ function turboredis.read_multibulk_reply(iostream, num_replies)
         local prefix
         local len
         for i=1, num_replies do
-            data = yield(turboredis.read_until_pattern(iostream, "\r\n"))
+            data = yield(turboredis.read_until(iostream, "\r\n"))
             prefix = data:sub(1,1)
             if prefix == "$" then
                 if len == -1 then
@@ -305,21 +305,21 @@ function turboredis.Command:_handle_reply(prefix)
     end
 
     if prefix == "+" then -- status
-        self.iostream:read_until_pattern("\r\n", function (data)
+        self.iostream:read_until("\r\n", function (data)
             data = data:strip()
             done({true, data})
         end)
     elseif prefix == "-" then -- error
-        self.iostream:read_until_pattern("\r\n", function (data)
+        self.iostream:read_until("\r\n", function (data)
             data = data:strip()
             done({false, data})
         end)
     elseif prefix == ":" then -- integer
-        self.iostream:read_until_pattern("\r\n", function (data)
+        self.iostream:read_until("\r\n", function (data)
             done({tonumber(data:strip())})
         end)
     elseif prefix == "$" then
-        self.iostream:read_until_pattern("\r\n", function (data)
+        self.iostream:read_until("\r\n", function (data)
             local len = tonumber(data:strip())
             if len == -1 then
                 done({nil})
@@ -330,7 +330,7 @@ function turboredis.Command:_handle_reply(prefix)
             end
         end)
     elseif prefix == "*" then
-        self.iostream:read_until_pattern("\r\n", function(data)
+        self.iostream:read_until("\r\n", function(data)
             local num_replies = tonumber(data:strip())
             if num_replies == -1 then
                 done({nil})
