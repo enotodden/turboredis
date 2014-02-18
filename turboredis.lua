@@ -22,9 +22,9 @@ turboredis.COMMANDS = {
     "BITOP OR",
     "BITOP XOR",
     "BITOP NOT",
-    -- "BLPOP",
-    -- "BRPOP",
-    -- "BRPOPLPUSH", 
+    "BLPOP",
+    "BRPOP",
+    "BRPOPLPUSH", 
     "CLIENT KILL",
     "CLIENT LIST", -- FIXME: Should parse this..
     "CLIENT GETNAME",
@@ -197,73 +197,117 @@ function turboredis.flatten(t)
     return flat_t
 end
 
-function turboredis.read_bulk_reply(iostream, len)
-    local ctx = turbo.coctx.CoroutineContext:new(iostream.io_loop)
-    iostream:read_bytes(len, function (data) 
-        iostream:read_bytes(2, function() 
-            ctx:set_state(turbo.coctx.states.DEAD)
-            ctx:set_arguments({data})
-            ctx:finalize_context()
+function turboredis.read_bulk_reply(iostream, len, callback, callback_arg)
+    iostream:read_bytes(len, function (data)
+        iostream:read_bytes(2, function ()
+            if callback_arg then
+                callback(callback_arg, data)
+            else
+                callback(data)
+            end
         end)
     end)
-    ctx:set_state(turbo.coctx.states.WAIT_COND)
-    return ctx
 end
 
--- Wraps read_until in coctx
-function turboredis.read_until(iostream, seq)
-    local ctx = turbo.coctx.CoroutineContext:new(iostream.io_loop)
-    iostream:read_until(seq, function (data) 
-        ctx:set_state(turbo.coctx.states.DEAD)
-        ctx:set_arguments({data})
-        ctx:finalize_context()
-    end)
-    ctx:set_state(turbo.coctx.states.WAIT_COND)
-    return ctx
-end
+function turboredis.read_multibulk_reply(iostream, num_replies, callback,
+                                         callback_arg)
+    local out = {}
+    local len
+    function loop()
+        iostream:read_until("\r\n", function (data)
 
-function turboredis.read_multibulk_reply(iostream, num_replies)
-    local ctx = turbo.coctx.CoroutineContext:new(iostream.io_loop)
-    iostream.io_loop:add_callback(function()
-        local out = {}
-        local data
-        local prefix
-        local len
-        for i=1, num_replies do
-            data = yield(turboredis.read_until(iostream, "\r\n"))
-            prefix = data:sub(1,1)
-            if prefix == "$" then
+            function check()
+                if #out == num_replies then
+                    if callback_arg then
+                        callback(callback_arg, out)
+                    else
+                        callback(out)
+                    end
+                else
+                    loop()
+                end
+            end
+            local firstchar = data:sub(1,1) 
+            if firstchar == "$" or firstchar == "*" then
                 if len == -1 then
                     table.insert(out, nil)
+                    check()
                 else
                     len = tonumber(data:strip():sub(2))
-                    data = yield(turboredis.read_bulk_reply(iostream, len))
-                    table.insert(out, data)
+                    if firstchar == "$" then
+                        turboredis.read_bulk_reply(iostream, len,
+                            function (data)
+                                table.insert(out, data)
+                                check()
+                            end)
+                    else
+                        turboredis.read_multibulk_reply(iostream, len,
+                            function(data)
+                                table.insert(out, data)
+                                check()
+                            end)
+                    end
                 end
-            elseif prefix == ":" then -- integer
+            elseif firstchar == ":" then
                 table.insert(out, tonumber(data:strip():sub(2)))
-            elseif prefix == "*" then
-                table.insert(out, yield(turboredis.read_multibulk_reply(
-                    iostream, tonumber(data:strip():sub(2)))))
-            elseif prefix == "+" then
+                check()
+            elseif firstchar == "+" then
                 table.insert(out, true)
-            elseif prefix == "-" then
+                check()
+            elseif firstchar == "-" then
                 table.insert(out, false)
+                check()
             else
-                table.insert(out, nil, "Could not parse multibulk reply " ..
-                    "from redis")
+                table.insert(out, "Could not parse reply")
+                check()
             end
+        end)
+    end
+    loop()
+end
 
-            if #out == num_replies then
-                ctx:set_state(turbo.coctx.states.DEAD)
-                ctx:set_arguments({out})
-                ctx:finalize_context()
-            end
+function turboredis.read_reply(iostream, firstchar, callback, callback_arg)
+    function done(res)
+        if callback_arg then
+            callback(callback_arg, res)
+        else
+            callback(res)
         end
-    end)
-
-    ctx:set_state(turbo.coctx.states.WAIT_COND)
-    return ctx
+    end
+    if firstchar == "+" then -- status
+        iostream:read_until("\r\n", function (data)
+            data = data:strip()
+            done({true, data})
+        end)
+    elseif firstchar == "-" then -- error
+        iostream:read_until("\r\n", function (data)
+            data = data:strip()
+            done({false, data})
+        end)
+    elseif firstchar == ":" then -- integer
+        iostream:read_until("\r\n", function (data)
+            done({tonumber(data:strip())})
+        end)
+    elseif firstchar == "$" or firstchar == "*" then
+        iostream:read_until("\r\n", function (data)
+            local len = tonumber(data:strip())
+            if len == -1 then
+                done({nil})
+            else
+                if firstchar == "$" then
+                    turboredis.read_bulk_reply(iostream, len, function (reply)
+                        done({reply})
+                    end)
+                else
+                    turboredis.read_multibulk_reply(iostream, len, function (reply)
+                        done({reply})
+                    end)
+                end
+            end
+        end)
+    else
+        done({nil, "Could not parse reply from redis."})
+    end
 end
 
 turboredis.Command = class("Command")
@@ -275,6 +319,7 @@ function turboredis.Command:initialize(cmd, iostream)
 end
 
 function turboredis.Command:_format_res(res)
+    --print("::: RES", self.cmd[1], turbo.log.stringify(res))
     local out = res
     if not turboredis.purist then
         if self.cmd[1] == "CONFIG" then
@@ -286,7 +331,8 @@ function turboredis.Command:_format_res(res)
         else
             for _, c in ipairs({"EXISTS", "EXPIRE",
                                 "EXPIREAT", "HEXISTS",
-                                "HSETNX", "MSETNX"}) do
+                                "HSETNX", "MSETNX",
+                                "MOVE"}) do
                 if self.cmd[1] == c then
                     out = {res[1] == 1}
                     return out 
@@ -297,63 +343,25 @@ function turboredis.Command:_format_res(res)
     return out
 end
 
-function turboredis.Command:_handle_reply(prefix)
-    function done(arg)
-        self.coctx:set_state(turbo.coctx.states.DEAD)
-        self.coctx:set_arguments(self:_format_res(arg))
-        self.coctx:finalize_context()
-    end
-
-    if prefix == "+" then -- status
-        self.iostream:read_until("\r\n", function (data)
-            data = data:strip()
-            done({true, data})
-        end)
-    elseif prefix == "-" then -- error
-        self.iostream:read_until("\r\n", function (data)
-            data = data:strip()
-            done({false, data})
-        end)
-    elseif prefix == ":" then -- integer
-        self.iostream:read_until("\r\n", function (data)
-            done({tonumber(data:strip())})
-        end)
-    elseif prefix == "$" then
-        self.iostream:read_until("\r\n", function (data)
-            local len = tonumber(data:strip())
-            if len == -1 then
-                done({nil})
-            else
-                local reply = yield(turboredis.read_bulk_reply(self.iostream,
-                                                               len))
-                done({reply})
-            end
-        end)
-    elseif prefix == "*" then
-        self.iostream:read_until("\r\n", function(data)
-            local num_replies = tonumber(data:strip())
-            if num_replies == -1 then
-                done({nil})
-            else
-                local reply = yield(turboredis.read_multibulk_reply(
-                    self.iostream, num_replies))
-                done({reply})
-            end
-        end)
-    else
-        done({nil, "Could not parse reply from redis."})
-    end
+function turboredis.Command:_handle_reply(firstchar)
+    turboredis.read_reply(self.iostream, firstchar, function (self, res) 
+        local a1, a2
+        res = self:_format_res(res)
+        if self.callback_arg then
+            self.callback(self.callback_arg, unpack(res))
+        else
+            self.callback(unpack(res))
+        end
+    end, self)
 end
 
-function turboredis.Command:execute()
-    self.coctx = turbo.coctx.CoroutineContext:new(self.ioloop)
-    self.iostream:write(self.cmdstr, function() 
+function turboredis.Command:execute(callback, callback_arg)
+    self.callback = callback
+    self.callback_arg = callback_arg
+    self.iostream:write(self.cmdstr, function()
         self.iostream:read_bytes(1, self._handle_reply, self)
     end)
-    self.coctx:set_state(turbo.coctx.states.WAIT_COND)
-    return self.coctx
 end
-
 
 turboredis.BaseConnection = class("BaseConnection")
 function turboredis.BaseConnection:initialize(host, port, kwargs)
@@ -369,10 +377,10 @@ function turboredis.BaseConnection:initialize(host, port, kwargs)
     self.dbid = nil
 end
 
-function turboredis.BaseConnection:_connect_done(arg)
+function turboredis.BaseConnection:_connect_done(args)
     self.connect_timeout_ref = nil
     self.connect_coctx:set_state(turbo.coctx.states.DEAD)
-    self.connect_coctx:set_arguments(arg)
+    self.connect_coctx:set_arguments(args)
     self.connect_coctx:finalize_context()
 end
 
@@ -390,55 +398,143 @@ function turboredis.BaseConnection:_handle_connect()
     self:_connect_done({true})
 end
 
-function turboredis.BaseConnection:connect(timeout)
+function turboredis.BaseConnection:connect(timeout, callback, callback_arg)
+    local timeout
+    local connect_timeout_ref
+    local ctx 
+    
+    if not callback then
+        ctx = turbo.coctx.CoroutineContext:new(self.ioloop)
+        ctx:set_state(turbo.coctx.states.WORKING)
+    end
+
+    local connect_done = function(a1, a2)
+        if callback then
+            if callback_arg then
+                callback(callback_arg, a1, a2)
+            else
+                callback(a1, a2)
+            end
+        else
+            ctx:set_state(turbo.coctx.states.DEAD)
+            ctx:set_arguments({a1, a2})
+            ctx:finalize_context()
+        end
+    end
+
+    function handle_connect()
+        self.ioloop:remove_timeout(self.connect_timeout_ref)
+        connect_done(true)
+    end
+
+    function handle_connect_timeout()
+        connect_done(false, {err=-1, msg="Connect timeout"})
+    end
+
+    function handle_connect_error(err, strerror)
+        self.ioloop:remove_timeout(self.connect_timeout_ref)
+        connect_done(false, {err=err, msg=strerror})
+    end
+
+
     self.ioloop = turbo.ioloop.instance()
-    self.connect_coctx = turbo.coctx.CoroutineContext:new(self.ioloop)
-    self.connect_coctx:set_state(turbo.coctx.states.WORKING)
+
+    timeout = (timeout or self.connect_timeout) * 1000 + 
+        turbo.util.gettimeofday()
+    
+    connect_timeout_ref =  self.ioloop:add_timeout(timeout,
+                                                   handle_connect_timeout)
+
     self.sock, msg = turbo.socket.new_nonblock_socket(self.family,
                                                       turbo.socket.SOCK_STREAM,
                                                       0)
-    self.iostream = turbo.iostream.IOStream:new(self.sock, self.ioloop, 4096)
+
+    self.iostream = turbo.iostream.IOStream:new(self.sock, self.ioloop)
+
     local rc, msg = self.iostream:connect(self.host, 
                                           self.port,
                                           self.family, 
-                                          self._handle_connect,
-                                          self._handle_connect_error,
+                                          handle_connect,
+                                          handle_connect_error,
                                           self)
     if rc ~= 0 then
         error("Connect failed")
+        handle_connect_error(-1, "Connect failed")
         return -1 --wtf
     end
-    self.cmd = cmd 
-    timeout = (timeout or self.connect_timeout) * 1000 +
-        turbo.util.gettimeofday()
-    self.connect_timeout_ref = self.ioloop:add_timeout(timeout,
-        self._handle_connect_timeout, self)
-    self.connect_coctx:set_state(turbo.coctx.states.WAIT_COND)
-    return self.connect_coctx
+
+    if not callback then
+        ctx:set_state(turbo.coctx.states.WAIT_COND)
+        return ctx
+    end
 end
 
-function turboredis.BaseConnection:run(c)
-    return turboredis.Command:new(c, self.iostream):execute()
+function turboredis.BaseConnection:run(cmd, callback, callback_arg)
+    return turboredis.Command:new(cmd, self.iostream):execute(callback,
+                                                               callback_arg)
 end
 
-function turboredis.BaseConnection:auth(pwd)
-    self.authenticated = true
-    self.pwd = pwd
-    return turboredis.Command:new({"AUTH", pwd}, self.iostream):execute()
+function turboredis.BaseConnection:run_mod(cmd, mod, callback, callback_arg)
+    turboredis.Command:new(cmd, self.iostream):execute(function (...)
+        local args = mod(unpack({...}))
+        if callback_arg then
+            table.insert(args, 1, callback_arg)
+            callback(unpack(args))
+        else
+            callback(unpack(args))
+        end
+    end)
 end
 
-function turboredis.BaseConnection:select(dbid)
-    self.selected = true
-    self.dbid = dbid
-    return self:run({"SELECT", dbid})
+function turboredis.BaseConnection:run_mod_dual(cmd, mod, callback, callback_arg)
+    if callback then
+        return self:run_mod(cmd, mod, callback, callback_arg)
+    else
+        return turbo.async.task(self.run_mod, self, cmd, mod)
+    end
+end
+
+function turboredis.BaseConnection:run_dual(cmd, callback, callback_arg)
+    if callback then
+        return self:run(cmd, callback, callback_arg)
+    else
+        return turbo.async.task(self.run, self, cmd)
+    end
 end
 
 turboredis.Connection = class("Connection", turboredis.BaseConnection)
 for _, v in ipairs(turboredis.COMMANDS) do
-    turboredis.Connection[v:lower():gsub(" ", "_")] = function(self, ...)
+    turboredis.Connection[v:lower():gsub(" ", "_")] = function (self, ...)
         local cmd = turboredis.flatten({v:split(" "), ...})
-        return self:run(cmd)
+        local callback = false
+        local callback_arg = nil
+        if type(cmd[#cmd]) == "function" then
+            callback = cmd[#cmd]
+            cmd[#cmd] = nil
+        elseif type(cmd[#cmd-1]) == "function" then
+            callback = cmd[#cmd-1]
+            callback_arg = cmd[#cmd]
+            cmd[#cmd-1] = nil
+            cmd[#cmd] = nil
+        end
+        if callback then
+            return self:run(cmd, callback, callback_arg)
+        else
+            return turbo.async.task(self.run, self, cmd)
+        end
     end
+end
+
+function turboredis.Connection:select(dbid, callback, callback_arg)
+    self.selected = true
+    self.dbid = dbid
+    return self:run_dual({"SELECT", dbid}, callback, callback_arg)
+end
+
+function turboredis.Connection:config_get(key, callback, callback_arg)
+    return self:run_mod_dual({"CONFIG", "GET", key}, function(v)
+        return {v[key]}
+    end)
 end
 
 return turboredis
