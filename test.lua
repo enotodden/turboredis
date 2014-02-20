@@ -1,6 +1,13 @@
 --
 -- A set of very basic tests for turboredis
 --
+--
+
+
+function trace (event, line)
+  local s = debug.getinfo(2).short_src
+  print(s .. ":" .. line)
+end
 
 local turbo = require("turbo")
 require("luaunit")
@@ -57,6 +64,7 @@ arg = {}
 if not options.include_unsupported then
     print("IMPORTANT: Ignoring tests for unsupported / potentially unsupported commands")
 end
+
 
 TestTurboRedis = {}
 
@@ -481,7 +489,7 @@ end
 
 function TestTurboRedis:test_dbsize()
     local r
-    r = yield(self.con:dbsize()) 
+    r = yield(self.con:dbsize())
     assertEquals(r, 0)
     r = yield(self.con:set("abcdefg", "hijklmnop"))
     assert(r)
@@ -522,7 +530,7 @@ function TestTurboRedis:test_decrby()
 end
 
 function TestTurboRedis:test_del()
-    local r 
+    local r
     r = yield(self.con:set("foo", 1))
     assert(r)
     r = yield(self.con:get("foo"))
@@ -576,7 +584,7 @@ function TestTurboRedis:test_evalsha()
     ssha = yield(self.con:script_load("return redis.call('set','foo','bar')"))
     assert(ssha == "2fa2b029f72572e803ff55a09b1282699aecae6a")
     -- TODO: Should argument count be implied?
-    r = yield(self.con:evalsha(ssha, 0)) 
+    r = yield(self.con:evalsha(ssha, 0))
     assert(r)
     r = yield(self.con:get("foo"))
     assertEquals(r, "bar")
@@ -714,7 +722,7 @@ function TestTurboRedis:test_getrange()
     r = yield(self.con:getrange("foo", -3, -1))
     assertEquals(r, "bar")
 end
- 
+
 function TestTurboRedis:test_getset()
     local r
     r = yield(self.con:set("foo", "bar"))
@@ -998,7 +1006,7 @@ function TestTurboRedis:test_lpushx()
     assertEquals(r, 1)
     r = yield(self.con:lpushx("foolist", "bar"))
     assertEquals(r, 2)
-    r = yield(self.con:lpushx("barlist", "foo")) 
+    r = yield(self.con:lpushx("barlist", "foo"))
     assertEquals(r, 0)
 end
 
@@ -1160,11 +1168,98 @@ if not options.fast then
     end
 end
 
+-------------------------------------------------------------------------------
+
+TestTurboRedisPubSub = {}
+
+function TestTurboRedisPubSub:setUp()
+    _G.io_loop_instance = nil
+    self.ioloop = turbo.ioloop.instance()
+    self.con = turboredis.Connection:new(options.host, options.port)
+    self.pcon = turboredis.PubSubConnection:new(options.host, options.port)
+end
+
+function TestTurboRedisPubSub:connect()
+    local r
+    r = yield(self.con:connect())
+    assert(r)
+    r = yield(self.pcon:connect())
+    assert(r)
+    r = yield(self.con:flushall())
+    assert(r)
+end
+
+function TestTurboRedisPubSub:done()
+    r = yield(self.pcon:unsubscribe())
+    assert(r)
+end
+
+function TestTurboRedisPubSub:tearDown()
+end
+
+function TestTurboRedisPubSub:test_pubsub_channels()
+    local io = self.ioloop
+    io:add_callback(function ()
+        local r
+        self:connect()
+        r = yield(self.con:pubsub_channels("*"))
+        assertEquals(#r, 0)
+        r = yield(self.pcon:subscribe("foo"))
+        assert(r)
+        self.pcon:start(function ()
+            r = yield(self.con:pubsub_channels())
+            assertEquals(#r, 1)
+            self:done()
+            io:close()
+        end)
+    end)
+    io:wait(2)
+end
+
+function TestTurboRedisPubSub:test_pubsub_numpat()
+    local io = self.ioloop
+    io:add_callback(function ()
+        local r
+        self:connect()
+        r = yield(self.con:pubsub_numpat())
+        assertEquals(r, 0)
+        r = yield(self.pcon:psubscribe("fooz*"))
+        assert(r)
+        self.pcon:start(function ()
+            r = yield(self.con:pubsub_numpat())
+            assertEquals(r, 1)
+            self:done()
+            io:close()
+        end)
+    end)
+    io:wait(2)
+end
+
+function TestTurboRedisPubSub:test_pubsub_numsub()
+    local io = self.ioloop
+    io:add_callback(function ()
+        local r
+        self:connect()
+        r = yield(self.con:pubsub_numsub("foo"))
+        assertEquals(r.foo, 0)
+        r = yield(self.pcon:subscribe("foo"))
+        assert(r)
+        self.pcon:start(function ()
+            local r
+            r = yield(self.con:pubsub_numsub("foo"))
+            assertEquals(r.foo, 1)
+            self:done()
+            io:close()
+        end)
+    end)
+    io:wait(2)
+end
+
 function runtests()
     LuaUnit:run("TestTurboRedis")
     turbo.ioloop.instance():close()
+    LuaUnit:run("TestTurboRedisPubSub")
 end
-
 
 turbo.ioloop.instance():add_callback(runtests)
 turbo.ioloop.instance():start()
