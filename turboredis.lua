@@ -352,6 +352,8 @@ function turboredis.Command:_format_res(res)
             if self.cmd[2] == "GET" then
                 out = {turboredis.from_kvlist(res[1])}
             end
+        elseif self.cmd[1] == "INCRBYFLOAT" then
+            out = {tonumber(res[1])}
         elseif self.cmd[1] == "PUBSUB" then
             if self.cmd[2] == "NUMSUB" then
                 out = {}
