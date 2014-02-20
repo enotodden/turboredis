@@ -21,8 +21,8 @@ turboredis = {
     -- turboredis will not convert key-value pair lists to dicts
     -- and will not convert integer replies from certain commands to
     -- booleans for convenience.
-    purist=false 
-} 
+    purist=false
+}
 
 turboredis.COMMANDS = {
     "APPEND",
@@ -36,7 +36,7 @@ turboredis.COMMANDS = {
     "BITOP NOT",
     "BLPOP",
     "BRPOP",
-    "BRPOPLPUSH", 
+    "BRPOPLPUSH",
     "CLIENT KILL",
     "CLIENT LIST", -- FIXME: Should parse this..
     "CLIENT GETNAME",
@@ -247,7 +247,7 @@ function turboredis.read_multibulk_reply(iostream, num_replies, callback,
                     loop()
                 end
             end
-            local firstchar = data:sub(1,1) 
+            local firstchar = data:sub(1,1)
             if firstchar == "$" or firstchar == "*" then
                 if len == -1 then
                     table.insert(out, nil)
@@ -369,7 +369,7 @@ function turboredis.Command:_format_res(res)
                                 "MOVE"}) do
                 if self.cmd[1] == c then
                     out = {res[1] == 1}
-                    return out 
+                    return out
                 end
             end
         end
@@ -378,7 +378,7 @@ function turboredis.Command:_format_res(res)
 end
 
 function turboredis.Command:_handle_reply(firstchar)
-    turboredis.read_reply(self.iostream, firstchar, function (self, res) 
+    turboredis.read_reply(self.iostream, firstchar, function (self, res)
         local a1, a2
         res = self:_format_res(res)
         if self.callback_arg then
@@ -450,8 +450,8 @@ end
 function turboredis.BaseConnection:connect(timeout, callback, callback_arg)
     local timeout
     local connect_timeout_ref
-    local ctx 
-    
+    local ctx
+
     if not callback then
         ctx = turbo.coctx.CoroutineContext:new(self.ioloop)
         ctx:set_state(turbo.coctx.states.WORKING)
@@ -486,7 +486,7 @@ function turboredis.BaseConnection:connect(timeout, callback, callback_arg)
     end
 
     self.ioloop = turbo.ioloop.instance()
-    timeout = (timeout or self.connect_timeout) * 1000 + 
+    timeout = (timeout or self.connect_timeout) * 1000 +
         turbo.util.gettimeofday()
     connect_timeout_ref = self.ioloop:add_timeout(timeout,
                                                    handle_connect_timeout)
@@ -494,9 +494,9 @@ function turboredis.BaseConnection:connect(timeout, callback, callback_arg)
                                                       turbo.socket.SOCK_STREAM,
                                                       0)
     self.iostream = turbo.iostream.IOStream:new(self.sock, self.ioloop)
-    local rc, msg = self.iostream:connect(self.host, 
+    local rc, msg = self.iostream:connect(self.host,
                                           self.port,
-                                          self.family, 
+                                          self.family,
                                           handle_connect,
                                           handle_connect_error,
                                           self)
