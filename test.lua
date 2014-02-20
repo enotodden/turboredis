@@ -3,7 +3,7 @@
 --
 
 local turbo = require("turbo")
-local LuaUnit = require("luaunit")
+require("luaunit")
 local turboredis = require("turboredis")
 local yield = coroutine.yield
 local ffi = require("ffi")
@@ -14,6 +14,7 @@ unsigned int sleep(unsigned int seconds);
 
 local usage = [[
 test.lua [-f/--fast] [--redis-host REDIS_HOST] [--redis-port REDIS_PORT] [-h/--help]
+         [-U/--include-unstable-tests] [-I/--include-unsupported]
 ]]
 
 local options = {
@@ -29,6 +30,8 @@ while i <= #arg do
         options.fast = true
     elseif arg[i] == "--include-unsupported" or arg[i] == "-I" then
         options.include_unsupported = true
+    elseif arg[i] == "--include-unstable-tests" or arg[i] == "-U" then
+        options.unstable = true
     elseif arg[i] == "--redis-host" then
         options.host = arg[i+1]
         if options.host == nil then
@@ -332,7 +335,9 @@ function TestTurboRedis:test_bgrewriteaof()
     -- TOOD: Write a test that works for this
 end
 
-if not options.fast then
+if not options.fast and options.unstable then
+    -- This occasionally fails due to a currently
+    -- running background save operation
     function TestTurboRedis:test_bgsave()
         local r
         local time
@@ -907,10 +912,13 @@ function TestTurboRedis:test_keys()
     r = yield(self.con:set("hello", "world"))
     assert(r)
     r = yield(self.con:keys("*o"))
-    assertEquals(r, {"hello", "foo"})
+    assertItemsEquals(r, {"hello", "foo"})
+    assertItemsEquals(r, {"hello", "foo"})
 end
 
-if not options.fast then
+if not options.fast and options.unstable then
+    -- This occasionally fails due to a currently
+    -- running background save operation
     function TestTurboRedis:test_lastsave()
         local r
         local time
