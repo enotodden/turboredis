@@ -3,6 +3,19 @@ local middleclass =  require("turbo.3rdparty.middleclass")
 local ffi = require("ffi")
 local yield = coroutine.yield
 
+-- Range iterator from http://lua-users.org/wiki/RangeIterator
+local function range(from, to, step)
+    step = step or 1
+    return function(_, lastvalue)
+        local nextvalue = lastvalue + step
+        if step > 0 and nextvalue <= to or step < 0 and nextvalue >= to or
+             step == 0
+        then
+            return nextvalue
+        end
+    end, nil, from - step
+end
+
 turboredis = {
     -- If purist is set to true
     -- turboredis will not convert key-value pair lists to dicts
@@ -10,8 +23,6 @@ turboredis = {
     -- booleans for convenience.
     purist=false 
 } 
-
-
 
 turboredis.COMMANDS = {
     "APPEND",
@@ -98,7 +109,12 @@ turboredis.COMMANDS = {
     "PING",
     "PSETEX",
     -- PSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
-    "PUBSUB",
+
+    -- PUBSUB (divided into the subcommands below)
+    "PUBSUB CHANNELS",
+    "PUBSUB NUMSUB",
+    "PUBSUB NUMPAT",
+
     "PTTL",
     "PUBLISH",
     -- PUNSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
@@ -196,7 +212,6 @@ function turboredis.flatten(t)
     end
     return flat_t
 end
-
 
 -------------------------------------------------------------------------------
 ---------------------------------------------------- Redis Protocol Helpers ---
@@ -298,6 +313,8 @@ function turboredis.read_reply(iostream, firstchar, callback, callback_arg)
             local len = tonumber(data:strip())
             if len == -1 then
                 done({nil})
+            elseif len == 0 and firstchar == "*" then -- empty list or set
+                done({{}})
             else
                 if firstchar == "$" then
                     turboredis.read_bulk_reply(iostream, len, function (reply)
@@ -334,6 +351,14 @@ function turboredis.Command:_format_res(res)
         if self.cmd[1] == "CONFIG" then
             if self.cmd[2] == "GET" then
                 out = {turboredis.from_kvlist(res[1])}
+            end
+        elseif self.cmd[1] == "PUBSUB" then
+            if self.cmd[2] == "NUMSUB" then
+                out = {}
+                for i in range(1, #res[1], 2) do
+                    out[res[1][i]] = tonumber(res[1][i+1])
+                end
+                return {out}
             end
         elseif self.cmd[1] == "HGETALL" then
             out = {turboredis.from_kvlist(res[1])}
@@ -375,9 +400,9 @@ end
 function turboredis.Command:execute_noreply(callback, callback_arg)
     self.iostream:write(self.cmdstr, function()
         if callback_arg then
-            callback(callback_arg)
+            callback(callback_arg, true)
         else
-            callback()
+            callback(true)
         end
     end)
 end
@@ -596,7 +621,6 @@ function turboredis.PubSubConnection:start(callback, callback_arg)
     self.callback = callback
     self.callback_arg = callback_arg
     turbo.ioloop.instance():add_callback(function ()
-        print("SELF IS", self, self.callback)
         while true do
             local msg = yield(turbo.async.task(self.read_msg, self))
             if self.callback_arg then
@@ -628,21 +652,6 @@ for _, v in ipairs(turboredis.PUBSUB_COMMANDS) do
             return turbo.async.task(self.run_noreply, self, cmd)
         end
     end
-end
-
-function test_turboredis()
-    function main()
-        con = turboredis.PubSubConnection:new()
-        local r = yield(con:connect())
-        yield(con:subscribe("my.channel"))
-
-        con:start(function (msgtype, channel, data, msg)
-            print("MSG", turbo.log.stringify(msg))
-        end)
-    end
-
-    turbo.ioloop.instance():add_callback(main)
-    turbo.ioloop.instance():start()
 end
 
 return turboredis
