@@ -625,10 +625,29 @@ function turboredis.PubSubConnection:start(callback, callback_arg)
     turbo.ioloop.instance():add_callback(function ()
         while true do
             local msg = yield(turbo.async.task(self.read_msg, self))
-            if self.callback_arg then
-                self.callback(callback_arg, msg[1], msg[2], msg[3], msg)
+            local res = {}
+            res.msgtype = msg[1]
+            if res.msgtype == "psubscribe" then
+                res.pattern = msg[2]
+                res.channel = nil
+                res.data = msg[3]
+            elseif res.msgtype == "punsubscribe" then
+                res.pattern = msg[2]
+                res.channel = nil
+                res.data = msg[3]
+            elseif res.msgtype == "pmessage" then
+                res.pattern = msg[2]
+                res.channel = msg[3]
+                res.data = msg[4]
             else
-                self.callback(msg[1], msg[2], msg[3], msg)
+                res.pattern = nil
+                res.channel = msg[2]
+                res.data = msg[3]
+            end
+            if self.callback_arg then
+                self.callback(callback_arg, res)
+            else
+                self.callback(res)
             end
         end
     end)
