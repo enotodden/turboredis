@@ -1168,6 +1168,8 @@ if not options.fast then
     end
 end
 
+
+
 -------------------------------------------------------------------------------
 
 TestTurboRedisPubSub = {}
@@ -1192,10 +1194,38 @@ end
 function TestTurboRedisPubSub:done()
     r = yield(self.pcon:unsubscribe())
     assert(r)
+    r = yield(self.pcon:punsubscribe())
+    assert(r)
 end
 
 function TestTurboRedisPubSub:tearDown()
 end
+
+function TestTurboRedisPubSub:test_psubscribe()
+    local io = self.ioloop
+    io:add_callback(function ()
+        local r
+        self:connect()
+        r = yield(self.pcon:psubscribe("f*"))
+        assert(r)
+        self.pcon:start(function (msg)
+            if msg.msgtype == "psubscribe" then
+                assertEquals(msg.pattern, "f*")
+                r = yield(self.con:publish("foo", "abc"))
+                assert(r)
+            elseif msg.msgtype == "pmessage" then
+                assertEquals(msg.pattern, "f*")
+                assertEquals(msg.channel, "foo")
+                assertEquals(msg.data, "abc")
+                self:done()
+                io:close()
+            end
+        end)
+
+    end)
+    io:wait(5)
+end
+
 
 function TestTurboRedisPubSub:test_pubsub_channels()
     local io = self.ioloop
@@ -1204,14 +1234,14 @@ function TestTurboRedisPubSub:test_pubsub_channels()
         self:connect()
         r = yield(self.con:pubsub_channels("*"))
         assertEquals(#r, 0)
-        r = yield(self.pcon:subscribe("foo"))
-        assert(r)
         self.pcon:start(function ()
             r = yield(self.con:pubsub_channels())
             assertEquals(#r, 1)
             self:done()
             io:close()
         end)
+        r = yield(self.pcon:subscribe("foo"))
+        assert(r)
     end)
     io:wait(2)
 end
@@ -1223,14 +1253,14 @@ function TestTurboRedisPubSub:test_pubsub_numpat()
         self:connect()
         r = yield(self.con:pubsub_numpat())
         assertEquals(r, 0)
-        r = yield(self.pcon:psubscribe("fooz*"))
-        assert(r)
         self.pcon:start(function ()
             r = yield(self.con:pubsub_numpat())
             assertEquals(r, 1)
             self:done()
             io:close()
         end)
+        r = yield(self.pcon:psubscribe("fooz*"))
+        assert(r)
     end)
     io:wait(2)
 end
@@ -1254,6 +1284,63 @@ function TestTurboRedisPubSub:test_pubsub_numsub()
     end)
     io:wait(2)
 end
+
+function TestTurboRedisPubSub:test_publish()
+    local io = self.ioloop
+    io:add_callback(function ()
+        local r
+        self:connect()
+        r = yield(self.pcon:subscribe("foo"))
+        assert(r)
+        self.pcon:start(function (msg)
+            if msg.msgtype == "subscribe" then
+                assertEquals(msg.channel, "foo")
+                r = yield(self.con:publish("foo", "abc"))
+                assert(r)
+            elseif msg.msgtype == "message" then
+                assertEquals(msg.channel, "foo")
+                assertEquals(msg.data, "abc")
+                self:done()
+                io:close()
+            end
+        end)
+    end)
+    io:wait(5)
+end
+
+function TestTurboRedisPubSub:test_punsubscribe()
+    local io = self.ioloop
+    io:add_callback(function ()
+        local r
+        self:connect()
+        r = yield(self.pcon:psubscribe("f*"))
+        assert(r)
+        r = yield(self.pcon:psubscribe("*oo"))
+        assert(r)
+        self.pcon:start(function (msg)
+            if msg.msgtype == "psubscribe" then
+                assert(msg.pattern == "f*" or msg.pattern == "*oo")
+            elseif msg.msgtype == "punsubscribe" then
+                assert(msg.pattern == "f*" or msg.pattern == "*oo")
+                assertEquals(msg.channel, nil)
+                if msg.pattner == "f*" then
+                    assertEquals(msg.data, 1)
+                else
+                    assertEquals(msg.data, 1)
+                end
+                self:done()
+                io:close()
+            end
+        end)
+        r = yield(self.pcon:punsubscribe("f*"))
+        assert(r)
+        r = yield(self.pcon:punsubscribe("*oo"))
+        assert(r)
+    end)
+    io:wait(5)
+end
+
+TestTurboRedisPubSub.test_subscribe = TestTurboRedisPubSub.test_publish
 
 function runtests()
     LuaUnit:run("TestTurboRedis")
