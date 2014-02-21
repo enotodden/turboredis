@@ -1323,13 +1323,13 @@ function TestTurboRedisPubSub:test_punsubscribe()
             elseif msg.msgtype == "punsubscribe" then
                 assert(msg.pattern == "f*" or msg.pattern == "*oo")
                 assertEquals(msg.channel, nil)
-                if msg.pattner == "f*" then
+                if msg.pattern == "f*" then
                     assertEquals(msg.data, 1)
                 else
-                    assertEquals(msg.data, 1)
+                    assertEquals(msg.data, 0)
+                    self:done()
+                    io:close()
                 end
-                self:done()
-                io:close()
             end
         end)
         r = yield(self.pcon:punsubscribe("f*"))
