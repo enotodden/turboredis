@@ -1282,19 +1282,61 @@ function TestTurboRedis:test_setrange()
     assertEquals(r, "foofoo")
 end
 
---[[
-function TestTurboRedis:test_shutdown()
+if options.include_unsupported then
+    function TestTurboRedis:test_shutdown()
+        assert(false, "'SHUTDOWN' has no test yet.")
+    end
 end
 
 function TestTurboRedis:test_sinter()
+    local r
+    r = yield(self.con:sadd("fooset", "aa"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sadd("fooset", "bb"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sadd("fooset", "cc"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sadd("barset", "cc"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sadd("barset", "dd"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sinter("fooset", "barset"))
+    assertEquals(#r, 1)
+    assertEquals(r[1], "cc")
 end
 
 function TestTurboRedis:test_sinterstore()
+    local r
+    r = yield(self.con:sadd("fooset", "aa"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sadd("fooset", "bb"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sadd("fooset", "cc"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sadd("barset", "cc"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sadd("barset", "dd"))
+    assertItemsEquals(r, 1)
+    r = yield(self.con:sinterstore("foobarset", "fooset", "barset"))
+    assertEquals(r, 1)
+    r = yield(self.con:smembers("foobarset"))
+    assertEquals(#r, 1)
+    assertEquals(r[1], "cc")
 end
 
 function TestTurboRedis:test_sismember()
+    local r
+    r = yield(self.con:sadd("fooset", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:sadd("fooset", "bar"))
+    assertEquals(r, 1)
+    r = yield(self.con:sismember("fooset", "foo"))
+    assertEquals(r, true)
+    r = yield(self.con:sismember("fooset", "foobar"))
+    assertEquals(r, false)
 end
 
+--[[
 function TestTurboRedis:test_slaveof()
 end
 
