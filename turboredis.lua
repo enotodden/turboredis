@@ -235,7 +235,6 @@ function turboredis.read_multibulk_reply(iostream, num_replies, callback,
     local len
     function loop()
         iostream:read_until("\r\n", function (data)
-
             function check()
                 if #out == num_replies then
                     if callback_arg then
@@ -352,7 +351,8 @@ function turboredis.Command:_format_res(res)
             if self.cmd[2] == "GET" then
                 out = {turboredis.from_kvlist(res[1])}
             end
-        elseif self.cmd[1] == "INCRBYFLOAT" then
+        elseif self.cmd[1] == "INCRBYFLOAT" or 
+               self.cmd[1] == "PTTL" then
             out = {tonumber(res[1])}
         elseif self.cmd[1] == "PUBSUB" then
             if self.cmd[2] == "NUMSUB" then
@@ -368,7 +368,7 @@ function turboredis.Command:_format_res(res)
             for _, c in ipairs({"EXISTS", "EXPIRE",
                                 "EXPIREAT", "HEXISTS",
                                 "HSETNX", "MSETNX",
-                                "MOVE"}) do
+                                "MOVE", "RENAMENX"}) do
                 if self.cmd[1] == c then
                     out = {res[1] == 1}
                     return out
