@@ -66,6 +66,21 @@ if not options.include_unsupported then
 end
 
 
+function table_findval(haystack, needle)
+
+end
+
+function assertTableHas(t, needle)
+    local r = false
+    for _, v in ipairs(t) do
+        if v == needle then
+            r = true
+        end
+    end
+    assert(r)
+end
+
+
 TestTurboRedis = {}
 
 function TestTurboRedis:setUp()
@@ -80,242 +95,9 @@ end
 function TestTurboRedis:tearDown()
 end
 
-function TestTurboRedis:t_flushdb()
-    local r
-    r = yield(self.con:flushdb())
-    assert(r)
-    r = yield(self.con:set("test1", "123"))
-    assert(r)
-    r = yield(self.con:set("test2", "123"))
-    assert(r)
-    r = yield(self.con:set("test3", "123"))
-    assert(r)
-    r = yield(self.con:set("test4", "123"))
-    assert(r)
-    r = yield(self.con:dbsize())
-    assertEquals(r, 4)
-    r = yield(self.con:flushdb())
-    assert(r)
-    r = yield(self.con:dbsize())
-    assertEquals(r, 0)
-end
-
--- GET: see test_basic_set_get
-
-function TestTurboRedis:test_getbit()
-    local r
-    r = yield(self.con:getbit("test", 1))
-    assertEquals(r, 0)
-    r = yield(self.con:getbit("test", 2))
-    assertEquals(r, 1)
-end
-
-function TestTurboRedis:test_getrange()
-    local r
-    r = yield(self.con:getrange("test", 1, 2))
-    assertEquals(r, "23")
-end
-
-function TestTurboRedis:test_getset()
-    local r
-    r = yield(self.con:getset("test", "hello"))
-    assertEquals(r, "123")
-end
-
-function TestTurboRedis:test_hash()
-    local r
-    r = yield(self.con:hset("myhash", "field1", "foo"))
-    assert(r)
-    r = yield(self.con:hget("myhash", "field1"))
-    assertEquals(r, "foo")
-    r = yield(self.con:hexists("myhash", "field1"))
-    assert(r)
-    r = yield(self.con:hexists("myhash", "doesnotexist"))
-    assert(not r)
-    r = yield(self.con:hgetall("myhash"))
-    assert(r["field1"] == "foo")
-    r = yield(self.con:hkeys("myhash"))
-    assert(r[1] == "field1")
-    r = yield(self.con:hvals("myhash"))
-    assert(r[1] == "foo")
-    r = yield(self.con:hlen("myhash"))
-    assertEquals(r, 1)
-    r = yield(self.con:hset("myhash", "counter", 0))
-    assert(r)
-    r = yield(self.con:hincrby("myhash", "counter", 1))
-    assertEquals(r, 1)
-    r = yield(self.con:hget("myhash", "counter"))
-    assertEquals(r, "1")
-    r = yield(self.con:hincrbyfloat("myhash", "counter", 0.1))
-    assertEquals(r, "1.1")
-    r = yield(self.con:hmset("myhash", "f1", "v1", "f2", "v2"))
-    assert(r)
-    r = yield(self.con:hmget("myhash", "f1", "f2"))
-    assert(r[1] == "v1")
-    assert(r[2] == "v2")
-    r = yield(self.con:hsetnx("myhash", "f1", "123131231"))
-    assertEquals(r, false)
-    r = yield(self.con:hsetnx("myhash", "newfield", "lala"))
-    assertEquals(r, true)
-    r = yield(self.con:hdel("myhash", "newfield"))
-    assert(r)
-    r = yield(self.con:hexists("myhash", "newfield"))
-    assert(not r)
-end
-
-
-function TestTurboRedis:test_incr()
-    local r
-    r = yield(self.con:incr("test"))
-    assertEquals(r, 124)
-    r = yield(self.con:get("test"))
-    assertEquals(r, "124")
-end
-
-
-function TestTurboRedis:test_incrbyfloat()
-    local r
-    r = yield(self.con:incrbyfloat("test", 0.1))
-    assertEquals(r, "123.1")
-    r = yield(self.con:get("test"))
-    assertEquals(r, "123.1")
-end
-
-
-function TestTurboRedis:test_keys()
-    local r
-    r = yield(self.con:keys("*"))
-    assert(#r == 1)
-    assert(r[1] == "test")
-end
-
-
-function TestTurboRedis:test_list()
-    local r
-    r = yield(self.con:rpush("mylist", "Hello!"))
-    assert(r)
-    r = yield(self.con:lset("mylist", 0, "Hello!"))
-    assert(r)
-    r = yield(self.con:lindex("mylist", 0))
-    assertEquals(r, "Hello!")
-    r = yield(self.con:llen("mylist"))
-    assertEquals(r, 1)
-    r = yield(self.con:lpop("mylist"))
-    assertEquals(r, "Hello!")
-    r = yield(self.con:llen("mylist"))
-    assertEquals(r, 0)
-    r = yield(self.con:lset("mylist", 0, "Hello!"))
-    assert(not r)
-    r = yield(self.con:rpush("mylist", "Hello", "World"))
-    assertEquals(r, 2)
-    r = yield(self.con:rpushx("mylist", "!"))
-    assertEquals(r, 3)
-    r = yield(self.con:rpushx("invalid", "abcdefgh"))
-    assertEquals(r, 0)
-    r = yield(self.con:lpushx("invalid", "abcdefgh"))
-    assertEquals(r, 0)
-    r = yield(self.con:lpop("mylist"))
-    assertEquals(r, "Hello")
-    r = yield(self.con:rpop("mylist"))
-    assertEquals(r, "!")
-    r = yield(self.con:lpush("mylist", "GoodBye"))
-    assertEquals(r, 2)
-    r = yield(self.con:lrem("mylist", -1, "World"))
-    assertEquals(r, 1)
-    for _, v in ipairs({1,2,3,4}) do -- 4,3,2,1,GoodBye
-        r = yield(self.con:lpush("mylist", v))
-    end
-    assertEquals(r, 5)
-    r = yield(self.con:lrange("mylist", 0, 1))
-    assert(r[1] == "4")
-    assert(r[2] == "3")
-end
-
-function TestTurboRedis:test_mget()
-    local r
-    r = yield(self.con:set("foo", "bar"))
-    assert(r)
-    r = yield(self.con:set("bar", "foo"))
-    assert(r)
-    r = yield(self.con:mget("foo", "bar"))
-    assert(r[1] == "bar")
-    assert(r[2] == "foo")
-end
-
-function TestTurboRedis:test_move()
-    local r
-    r = yield(self.con:set("to_be_moved", "123"))
-    assert(r)
-    r = yield(self.con:move("to_be_moved", "1"))
-    assert(r)
-    r = yield(self.con:get("to_be_moved"))
-    assert(not r)
-    r = yield(self.con:select(1))
-    assert(r)
-    r = yield(self.con:get("to_be_moved"))
-    assert(r)
-end
-
-function TestTurboRedis:test_mset()
-    local r
-    r = yield(self.con:mset("key1", "val1", "key2", "val2"))
-    assert(r)
-    r = yield(self.con:get("key1"))
-    assertEquals(r, "val1")
-    r = yield(self.con:get("key2"))
-    assertEquals(r, "val2")
-end
-
-function TestTurboRedis:test_msetnx()
-    local r
-    r = yield(self.con:msetnx("key1", "val1", "key2", "val2"))
-    assert(r)
-    r = yield(self.con:msetnx("key2", "val2", "key3", "val3"))
-    assert(not r)
-end
-
-function TestTurboRedis:test_multi_exec_and_discard()
-    local r
-    r = yield(self.con:multi())
-    assert(r)
-    r = yield(self.con:set("key1", "val1"))
-    assert(r)
-    r = yield(self.con:set("key2", "val2"))
-    assert(r)
-    r = yield(self.con:exec())
-    assert(r)
-    r = yield(self.con:get("key1"))
-    assertEquals(r, "val1")
-    r = yield(self.con:multi())
-    assert(r)
-    r = yield(self.con:set("key3", "val3"))
-    assert(r)
-    r = yield(self.con:get("key3"))
-    assert(r)
-    r = yield(self.con:discard())
-    assert(r)
-    r = yield(self.con:get("key3"))
-    assertEquals(r, nil)
-end
-
--- TODO: OBJECT
-
-function TestTurboRedis:test_persist()
-
-end
-
-function TestTurboRedis:test_select()
-    local r
-    r = yield(self.con:select(1))
-    assert(r)
-    r = yield(self.con:get("test"))
-    assert(not r)
-end
-
 
 
 --- Test by command
-
 
 function TestTurboRedis:test_append()
     local r
@@ -339,8 +121,10 @@ end
 -- end
 --
 
-function TestTurboRedis:test_bgrewriteaof()
-    -- TOOD: Write a test that works for this
+if options.include_unsupported then
+    function TestTurboRedis:test_bgrewriteaof()
+        assert(false, "'BGREWRITEAOF' has no test yet.")
+    end
 end
 
 if not options.fast and options.unstable then
@@ -406,7 +190,7 @@ end
 function TestTurboRedis:test_blpop()
     local r
     r = yield(self.con:rpush("foo", "bar"))
-    assert(r)
+    assertEquals(r, 1)
     r = yield(self.con:blpop("foo", 1))
     assertEquals(r[1], "foo")
     assertEquals(r[2], "bar")
@@ -415,8 +199,9 @@ end
 function TestTurboRedis:test_brpop()
     local r
     r = yield(self.con:rpush("foo", "bar"))
+    assertEquals(r, 1)
     r = yield(self.con:rpush("foo", "barbar"))
-    assert(r)
+    assertEquals(r, 2)
     r = yield(self.con:brpop("foo", 1))
     assertEquals(r[1], "foo")
     assertEquals(r[2], "barbar")
@@ -425,21 +210,24 @@ end
 function TestTurboRedis:test_brpoplpush()
     local r
     r = yield(self.con:rpush("foolist", "foo"))
-    assert(r)
+    assertEquals(r, 1)
     r = yield(self.con:rpush("foolist", "bar"))
-    assert(r)
+    assertEquals(r, 2)
     r = yield(self.con:rpush("foolist", "foobar"))
-    assert(r)
+    assertEquals(r, 3)
     r = yield(self.con:brpoplpush("foolist", "barlist", 1))
     assertEquals(r, "foobar")
     r = yield(self.con:lrange("barlist", 0, -1))
     assertEquals(r, {"foobar"})
 end
 
-function TestTurboRedis:test_client_kill()
-    -- TODO: 1. Make another connection
-    --       2. Kill it
-    --       3. Verify that it is no longer working
+if options.include_unsupported then
+    function TestTurboRedis:test_client_kill()
+        -- TODO: 1. Make another connection
+        --       2. Kill it
+        --       3. Verify that it is no longer working
+        assert(false, "'CLIENT KILL' has no test yet.")
+    end
 end
 
 function TestTurboRedis:test_client_list()
@@ -482,9 +270,12 @@ function TestTurboRedis:test_config_set()
     assert(r)
 end
 
-function TestTurboRedis:test_config_resetstats()
-    -- TODO: How to test this?? Some string matching on the result
-    -- from the INFO command maybe?
+if options.include_unsupported then
+    function TestTurboRedis:test_config_resetstats()
+        -- TODO: How to test this?? Some string matching on the result
+        -- from the INFO command maybe?
+        assert(false, "'CONFIG RESETSTATS' has no test yet.")
+    end
 end
 
 function TestTurboRedis:test_dbsize()
@@ -1047,6 +838,17 @@ function TestTurboRedis:test_lrem()
     -- FIXME: More tests if needed
 end
 
+function TestTurboRedis:test_mget()
+    local r
+    r = yield(self.con:set("foo", "bar"))
+    assert(r)
+    r = yield(self.con:set("bar", "foo"))
+    assert(r)
+    r = yield(self.con:mget("foo", "bar"))
+    assert(r[1] == "bar")
+    assert(r[2] == "foo")
+end
+
 if options.include_unsupported then
     function TestTurboRedis:test_monitor()
         assert(false, "'MONITOR' not currently supported and has no test.")
@@ -1256,6 +1058,251 @@ function TestTurboRedis:test_restore()
     r = yield(self.con:get("foo"))
     assertEquals(r, "bar")
 end
+
+function TestTurboRedis:test_rpop()
+    local r
+    r = yield(self.con:rpush("foolist", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:rpush("foolist", "bar"))
+    assertEquals(r, 2)
+    r = yield(self.con:rpop("foolist"))
+    assertEquals(r, "bar")
+    r = yield(self.con:rpop("foolist"))
+    assertEquals(r, "foo")
+end
+
+function TestTurboRedis:test_rpoplpush()
+    local r
+    r = yield(self.con:rpush("foolist", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:rpush("foolist", "bar"))
+    assertEquals(r, 2)
+    r = yield(self.con:rpoplpush("foolist", "barlist"))
+    assertEquals(r, "bar")
+    r = yield(self.con:rpop("foolist"))
+    assertEquals(r, "foo")
+    r = yield(self.con:rpop("barlist"))
+    assertEquals(r, "bar")
+end
+
+function TestTurboRedis:test_rpush()
+    local r
+    r = yield(self.con:rpush("foolist", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:rpush("foolist", "bar"))
+    assertEquals(r, 2)
+    r = yield(self.con:rpop("foolist"))
+    assertEquals(r, "bar")
+    r = yield(self.con:rpop("foolist"))
+    assertEquals(r, "foo")
+end
+
+function TestTurboRedis:test_rpushx()
+    local r
+    r = yield(self.con:rpushx("foolist", "foo"))
+    assertEquals(r, 0)
+    r = yield(self.con:rpush("foolist", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:rpushx("foolist", "bar"))
+    assertEquals(r, 2)
+end
+
+function TestTurboRedis:test_sadd()
+    local r
+    r = yield(self.con:sadd("fooset", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:sadd("fooset", "bar", "foobar"))
+    assertEquals(r, 2)
+    r = yield(self.con:smembers("fooset"))
+    assertTableHas(r, "foo") 
+    assertTableHas(r, "bar")
+    assertTableHas(r, "foobar")
+end
+
+function TestTurboRedis:test_save()
+    local r
+    r = yield(self.con:save())
+    assert(r)
+end
+
+function TestTurboRedis:test_scard()
+    local r
+    r = yield(self.con:sadd("fooset", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:sadd("fooset", "bar", "foobar"))
+    assertEquals(r, 2)
+    r = yield(self.con:scard("fooset"))
+    assertEquals(r, 3)
+end
+
+function TestTurboRedis:test_script_exists()
+    local r
+    local return1hash = "e0e1f9fabfc9d4800c877a703b823ac0578ff8db"
+    local bullshithash = "d6791ddba07df4735f83e91c43814e891038559c"
+    r = yield(self.con:script_load("return 1"))
+    assertEquals(r, return1hash)
+    r = yield(self.con:script_exists(return1hash))
+    assertEquals(#r, 1)
+    assertEquals(r[1], 1)
+    r = yield(self.con:script_exists(bullshithash))
+    assertEquals(#r, 1)
+    assertEquals(r[1], 0)
+end
+
+function TestTurboRedis:test_script_flush()
+    local r
+    local return1hash = "e0e1f9fabfc9d4800c877a703b823ac0578ff8db"
+    r = yield(self.con:script_load("return 1"))
+    assertEquals(r, return1hash)
+    r = yield(self.con:script_exists(return1hash))
+    assertEquals(#r, 1)
+    assertEquals(r[1], 1)
+    r = yield(self.con:script_flush())
+    assert(r)
+    r = yield(self.con:script_exists(return1hash))
+    assertEquals(#r, 1)
+    assertEquals(r[1], 0)
+end
+
+if options.include_unsupported then
+    function TestTurboRedis:test_script_kill()
+        assert(false, "'SCRIPT KILL' has no test yet.")
+    end
+end
+
+function TestTurboRedis:test_script_load()
+    local r
+    local return1hash = "e0e1f9fabfc9d4800c877a703b823ac0578ff8db"
+    r = yield(self.con:script_load("return 1"))
+    assertEquals(r, return1hash)
+    r = yield(self.con:script_exists(return1hash))
+    assertEquals(#r, 1)
+    assertEquals(r[1], 1)
+end
+
+function TestTurboRedis:test_sdiff()
+    local r
+    r = yield(self.con:sadd("fooset", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:sadd("barset", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:sadd("barset", "bar"))
+    assertEquals(r, 1)
+    r = yield(self.con:sadd("barset", "foobar"))
+    assertEquals(r, 1)
+    r = yield(self.con:sdiff("barset", "fooset"))
+    assertEquals(#r, 2)
+    assertTableHas(r, "bar")
+    assertTableHas(r, "foobar")
+    r = yield(self.con:sdiff("fooset", "barset"))
+    assertEquals(#r, 0)
+    assertEquals(type(r), "table")
+end
+
+function TestTurboRedis:test_sdiffstore()
+    local r
+    r = yield(self.con:sadd("fooset", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:sadd("barset", "foo"))
+    assertEquals(r, 1)
+    r = yield(self.con:sadd("barset", "bar"))
+    assertEquals(r, 1)
+    r = yield(self.con:sadd("barset", "foobar"))
+    assertEquals(r, 1)
+    r = yield(self.con:sdiffstore("foobarset", "barset", "fooset"))
+    assertEquals(r, 2)
+    r = yield(self.con:smembers("foobarset"))
+    assertTableHas(r, "bar")
+    assertTableHas(r, "foobar")
+end
+
+function TestTurboRedis:test_select()
+    local r
+    r = yield(self.con:select(1))
+    assert(r)
+    r = yield(self.con:get("test"))
+    assert(not r)
+end
+
+function TestTurboRedis:test_set()
+    local r
+    r = yield(self.con:set("foo", "bar"))
+    assert(r)
+    r = yield(self.con:get("foo"))
+    assertEquals(r, "bar")
+    -- TODO: Test the 'new' SET
+end
+
+function TestTurboRedis:test_setbit()
+    local r
+    r = yield(self.con:setbit("foo", 7, 1))
+    assert(r)
+    r = yield(self.con:getbit("foo", 7))
+    assertEquals(r, 1)
+    r = yield(self.con:setbit("foo", 7, 0))
+    assert(r)
+    r = yield(self.con:getbit("foo", 7))
+    assertEquals(r, 0)
+end
+
+if not options.fast then
+    function TestTurboRedis:test_setex()
+        local r
+        r = yield(self.con:setex("foo", 2, "bar"))
+        assert(r)
+        r = yield(self.con:get("foo"))
+        assertEquals(r, "bar")
+        ffi.C.sleep(2)
+        r = yield(self.con:get("foo"))
+        assertEquals(r, nil)
+    end
+end
+
+function TestTurboRedis:test_setnx()
+    local r
+    r = yield(self.con:set("foo", "bar"))
+    assert(r)
+    r = yield(self.con:setnx("foo", "foobar"))
+    assert(not r)
+    r = yield(self.con:get("foo"))
+    assertEquals(r, "bar")
+    r = yield(self.con:setnx("bar", "foobar"))
+    assert(r)
+    r = yield(self.con:get("bar"))
+    assertEquals(r, "foobar")
+end
+
+--[[
+function TestTurboRedis:test_setrange()
+end
+
+function TestTurboRedis:test_shutdown()
+end
+
+function TestTurboRedis:test_sinter()
+end
+
+function TestTurboRedis:test_sinterstore()
+end
+
+function TestTurboRedis:test_sismember()
+end
+
+function TestTurboRedis:test_slaveof()
+end
+
+function TestTurboRedis:test_slowlog()
+end
+
+function TestTurboRedis:test_smembers()
+end
+
+function TestTurboRedis:test_smove()
+end
+
+function TestTurboRedis:test_sort()
+end
+]]
 
 -------------------------------------------------------------------------------
 
