@@ -77,7 +77,7 @@ function assertTableHas(t, needle)
             r = true
         end
     end
-    assert(r)
+    assert(r, "Could not find '" .. tostring(needle) .. "' in table.")
 end
 
 
@@ -1272,10 +1272,17 @@ function TestTurboRedis:test_setnx()
     assertEquals(r, "foobar")
 end
 
---[[
 function TestTurboRedis:test_setrange()
+    local r
+    r = yield(self.con:set("foo", "foobar"))
+    assert(r)
+    r = yield(self.con:setrange("foo", 3, "foo"))
+    assertEquals(r, 6)
+    r = yield(self.con:get("foo"))
+    assertEquals(r, "foofoo")
 end
 
+--[[
 function TestTurboRedis:test_shutdown()
 end
 
