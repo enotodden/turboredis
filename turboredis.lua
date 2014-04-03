@@ -48,12 +48,12 @@ turboredis.COMMANDS = {
     "CLIENT GETNAME",
     "CLIENT SETNAME",
     "CONFIG GET",
-    -- "CONFIG REWRITE" (not yet supported)
+    "CONFIG REWRITE",
     "CONFIG SET",
     "CONFIG RESETSTAT",
     "DBSIZE",
-    -- "DEBUG OBJECT" (not yet supported)
-    -- "DEBUG SEGFAULT" (not yet supported)
+    "DEBUG OBJECT",
+    "DEBUG SEGFAULT",
     "DECR",
     "DECRBY",
     "DEL",
@@ -172,6 +172,7 @@ turboredis.COMMANDS = {
     "TYPE",
     -- UNSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
     "UNWATCH",
+    "WATCH",
     "ZADD",
     "ZCARD",
     "ZCOUNT",
@@ -187,7 +188,11 @@ turboredis.COMMANDS = {
     "ZREVRANGEBYSCORE",
     "ZREVRANK",
     "ZSCORE",
-    "ZUNIONSTORE"
+    "ZUNIONSTORE",
+    "SCAN",
+    "SSCAN",
+    "HSCAN",
+    "ZSCAN"
 }
 
 function turboredis.pack(t)
