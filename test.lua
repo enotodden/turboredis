@@ -258,6 +258,12 @@ function TestTurboRedis:test_config_get()
     assertEquals(r, tostring(self.con.port))
 end
 
+if options.include_unsupported then
+    function TestTurboRedis:test_config_rewrite()
+        assert(false, "'CONFIG REWRITE' has no test yet.")
+    end
+end
+
 function TestTurboRedis:test_config_set()
     local r
     local old_appendonly = yield(self.con:config_get("appendonly"))
@@ -271,10 +277,8 @@ function TestTurboRedis:test_config_set()
 end
 
 if options.include_unsupported then
-    function TestTurboRedis:test_config_resetstats()
-        -- TODO: How to test this?? Some string matching on the result
-        -- from the INFO command maybe?
-        assert(false, "'CONFIG RESETSTATS' has no test yet.")
+    function TestTurboRedis:test_config_resetstat()
+        assert(false, "'CONFIG RESETSTAT' has no test yet.")
     end
 end
 
@@ -1425,6 +1429,101 @@ function TestTurboRedis:test_sort()
     assertEquals(r[2], "4")
     -- TODO: Test more of the sort syntax
 end
+
+--[[
+function TestTurboRedis:test_spop()
+end
+
+function TestTurboRedis:test_srandmember()
+end
+
+function TestTurboRedis:test_srem()
+end
+
+function TestTurboRedis:test_strlen()
+end
+
+function TestTurboRedis:test_sunion()
+end
+
+function TestTurboRedis:test_sunionstore()
+end
+
+function TestTurboRedis:test_sync()
+end
+
+function TestTurboRedis:test_time()
+end
+
+function TestTurboRedis:test_ttl()
+end
+
+function TestTurboRedis:test_type()
+end
+
+function TestTurboRedis:test_unwatch()
+end
+
+function TestTurboRedis:test_watch()
+end
+
+function TestTurboRedis:test_zadd()
+end
+
+function TestTurboRedis:test_zcard()
+end
+
+function TestTurboRedis:test_zcount()
+end
+
+function TestTurboRedis:test_zincrby()
+end
+
+function TestTurboRedis:test_zinterstore()
+end
+
+function TestTurboRedis:test_zrange()
+end
+
+function TestTurboRedis:test_zrangebyscore()
+end
+
+function TestTurboRedis:test_zrank()
+end
+
+function TestTurboRedis:test_zrem()
+end
+
+function TestTurboRedis:test_zremrangebyrank()
+end
+
+function TestTurboRedis:test_zrevrange()
+end
+
+function TestTurboRedis:test_zrevrangebyscore()
+end
+
+function TestTurboRedis:test_zrevrank()
+end
+
+function TestTurboRedis:test_zscore()
+end
+
+function TestTurboRedis:test_zunionstore()
+end
+
+function TestTurboRedis:test_scan()
+end
+
+function TestTurboRedis:test_sscan()
+end
+
+function TestTurboRedis:test_hscan()
+end
+
+function TestTurboRedis:test_zscan()
+end
+]]--
 
 -------------------------------------------------------------------------------
 
