@@ -368,7 +368,7 @@ function turboredis.Command:_format_res(res)
             for _, c in ipairs({"EXISTS", "EXPIRE",
                                 "EXPIREAT", "HEXISTS",
                                 "HSETNX", "MSETNX",
-                                "MOVE", "RENAMENX"}) do
+                                "MOVE", "RENAMENX", "SETNX"}) do
                 if self.cmd[1] == c then
                     out = {res[1] == 1}
                     return out
