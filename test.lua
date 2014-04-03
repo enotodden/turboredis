@@ -1336,22 +1336,95 @@ function TestTurboRedis:test_sismember()
     assertEquals(r, false)
 end
 
---[[
-function TestTurboRedis:test_slaveof()
+if options.include_unsupported then
+    function TestTurboRedis:test_slaveof()
+        assert(false, "'SLAVEOF' has no test yet.")
+    end
 end
 
-function TestTurboRedis:test_slowlog()
+if options.include_unsupported then
+    function TestTurboRedis:test_slowlog_get()
+        assert(false, "'SLOWLOG GET' has no test yet.")
+    end
+end
+
+function TestTurboRedis:test_slowlog_len()
+    local r
+    r = yield(self.con:slowlog_reset())
+    assert(r)
+    r = yield(self.con:slowlog_len())
+    assertEquals(r, 0)
+end
+
+function TestTurboRedis:test_slowlog_reset()
+    local r
+    r = yield(self.con:slowlog_reset())
+    assert(r)
 end
 
 function TestTurboRedis:test_smembers()
+    local r
+    r = yield(self.con:sadd("fooset", "foo", "bar"))
+    assertEquals(r, 2)
+    r = yield(self.con:smembers("fooset"))
+    assertEquals(#r, 2)
+    assertTableHas(r, "foo")
+    assertTableHas(r, "bar")
+    r = yield(self.con:sadd("fooset", "foobar"))
+    assertEquals(r, 1)
+    r = yield(self.con:smembers("fooset"))
+    assertEquals(#r, 3)
+    assertTableHas(r, "foo")
+    assertTableHas(r, "bar")
+    assertTableHas(r, "foobar")
 end
 
 function TestTurboRedis:test_smove()
+    local r
+    r = yield(self.con:sadd("fooset", "foo", "bar"))
+    assertEquals(r, 2)
+    r = yield(self.con:smembers("fooset"))
+    assertEquals(#r, 2)
+    assertTableHas(r, "foo")
+    assertTableHas(r, "bar")
+    r = yield(self.con:smove("fooset", "barset", "foo"))
+    assert(r)
+    r = yield(self.con:smembers("barset"))
+    assertEquals(#r, 1)
+    assertTableHas(r, "foo")
+    r = yield(self.con:smove("fooset", "foobarbar"))
+    assert(not r)
 end
 
 function TestTurboRedis:test_sort()
+    local r
+    r = yield(self.con:rpush("foolist", 4, 2, 16))
+    assertEquals(r, 3)
+    r = yield(self.con:sort("foolist"))
+    assertEquals(#r, 3)
+    assertEquals(r[1], "2")
+    assertEquals(r[2], "4")
+    assertEquals(r[3], "16")
+    r = yield(self.con:sort("foolist", turboredis.SORT_ASC))
+    assertEquals(#r, 3)
+    assertEquals(r[1], "2")
+    assertEquals(r[2], "4")
+    assertEquals(r[3], "16")
+    r = yield(self.con:sort("foolist", turboredis.SORT_DESC))
+    assertEquals(#r, 3)
+    assertEquals(r[1], "16")
+    assertEquals(r[2], "4")
+    assertEquals(r[3], "2")
+    r = yield(self.con:sort("foolist", turboredis.SORT_ASC, turboredis.SORT_LIMIT, 0, 2))
+    assertEquals(#r, 2)
+    assertEquals(r[1], "2")
+    assertEquals(r[2], "4")
+    r = yield(self.con:sort("foolist", turboredis.SORT_DESC, turboredis.SORT_LIMIT, 0, 2))
+    assertEquals(#r, 2)
+    assertEquals(r[1], "16")
+    assertEquals(r[2], "4")
+    -- TODO: Test more of the sort syntax
 end
-]]
 
 -------------------------------------------------------------------------------
 
