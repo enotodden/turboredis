@@ -22,6 +22,12 @@ turboredis = {
     -- and will not convert integer replies from certain commands to
     -- booleans for convenience.
     purist=false
+    SORT_DESC="desc",
+    SORT_ASC="asc",
+    SORT_LIMIT="limit"
+    SORT_BY="by",
+    SORT_STORE="store",
+    SORT_GET="get"
 }
 
 turboredis.COMMANDS = {
@@ -147,7 +153,9 @@ turboredis.COMMANDS = {
     "SINTERSTORE",
     "SISMEMBER",
     "SLAVEOF",
-    "SLOWLOG",
+    "SLOWLOG GET",
+    "SLOWLOG LEN",
+    "SLOWLOG RESET",
     "SMEMBERS",
     "SMOVE",
     "SORT",
@@ -369,7 +377,7 @@ function turboredis.Command:_format_res(res)
                                 "EXPIREAT", "HEXISTS",
                                 "HSETNX", "MSETNX",
                                 "MOVE", "RENAMENX", "SETNX",
-                                "SISMEMBER"}) do
+                                "SISMEMBER", "SMOVE"}) do
                 if self.cmd[1] == c then
                     out = {res[1] == 1}
                     return out
