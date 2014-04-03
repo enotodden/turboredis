@@ -1168,7 +1168,94 @@ if not options.fast then
     end
 end
 
+if not options.fast then
+    function TestTurboRedis:test_pttl()
+        local r
+        r = yield(self.con:set("foo", "bar"))
+        assert(r)
+        r = yield(self.con:pexpire("foo", 2000))
+        assert(r)
+        ffi.C.sleep(1)
+        r = yield(self.con:pttl("foo"))
+        assert(r < 1001 and r > 0)
+        r = yield(self.con:get("foo"))
+        assert(r)
+    end
+end
 
+if options.unstable then
+    function TestTurboRedis:test_quit()
+        local r
+        local con
+        local ioloop = turbo.ioloop.instance()
+        con = turboredis.Connection:new(options.host, options.port)
+        r = yield(con:connect())
+        assert(r)
+        r = yield(self.con:quit())
+        assert(r)
+        assert(self.con.iostream:closed())
+    end
+end
+
+function TestTurboRedis:test_randomkey()
+    local r
+    r = yield(self.con:randomkey())
+    assertEquals(r, nil)
+    r = yield(self.con:set("foo", "BAAAR"))
+    assert(r)
+    r = yield(self.con:randomkey())
+    assertEquals(r, "foo")
+    r = yield(self.con:set("bar", "FOOOO"))
+    assert(r)
+    r = yield(self.con:randomkey())
+    assert(r == "foo" or r == "bar")
+end
+
+function TestTurboRedis:test_rename()
+    local r
+    r = yield(self.con:set("foo", "BAR"))
+    assert(r)
+    r = yield(self.con:rename("foo", "bar"))
+    assert(r)
+    r = yield(self.con:get("foo"))
+    assertEquals(r, nil)
+    r = yield(self.con:get("bar"))
+    assertEquals(r, "BAR")
+end
+
+function TestTurboRedis:test_renamenx()
+    local r
+    r = yield(self.con:set("foo", "BAR"))
+    assert(r)
+    r = yield(self.con:set("bar", "FOO"))
+    assert(r)
+    r = yield(self.con:renamenx("foo", "bar"))
+    assert(not r)
+    r = yield(self.con:renamenx("foo", "foobar"))
+    assert(r)
+    r = yield(self.con:get("foo"))
+    assertEquals(r, nil)
+    r = yield(self.con:get("foobar"))
+    assertEquals(r, "BAR")
+end
+
+function TestTurboRedis:test_restore()
+    local r
+    local dumped
+    r = yield(self.con:set("foo", "bar"))
+    assert(r)
+    r = yield(self.con:dump("foo"))
+    assertEquals(r, "\x00\x03bar\x06\x00pS!\xe0\x1b3\xc1\x84")
+    dumped = r
+    r = yield(self.con:del("foo"))
+    assert(r)
+    r = yield(self.con:get("foo"))
+    assertEquals(r, nil)
+    r = yield(self.con:restore("foo", 0, dumped))
+    assert(r)
+    r = yield(self.con:get("foo"))
+    assertEquals(r, "bar")
+end
 
 -------------------------------------------------------------------------------
 
@@ -1349,4 +1436,4 @@ function runtests()
 end
 
 turbo.ioloop.instance():add_callback(runtests)
-turbo.ioloop.instance():start()
+turbo.ioloop.instance():wait(60)
