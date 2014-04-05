@@ -2,6 +2,13 @@ local turbo = require("turbo")
 local middleclass =  require("turbo.3rdparty.middleclass")
 local ffi = require("ffi")
 local yield = coroutine.yield
+local task = turbo.async.task
+
+function trace (event, line)
+    local s = debug.getinfo(2).short_src
+    print(s .. ":" .. line)
+end
+--debug.sethook(trace, "l")
 
 -- Range iterator from http://lua-users.org/wiki/RangeIterator
 local function range(from, to, step)
@@ -21,13 +28,17 @@ turboredis = {
     -- turboredis will not convert key-value pair lists to dicts
     -- and will not convert integer replies from certain commands to
     -- booleans for convenience.
-    purist=false
-    SORT_DESC="desc",
-    SORT_ASC="asc",
-    SORT_LIMIT="limit"
-    SORT_BY="by",
-    SORT_STORE="store",
-    SORT_GET="get"
+    purist = false,
+    SORT_DESC = "desc",
+    SORT_ASC = "asc",
+    SORT_LIMIT = "limit",
+    SORT_BY = "by",
+    SORT_STORE = "store",
+    SORT_GET = "get",
+    Z_WITHSCORES = "withscores",
+    Z_LIMIT = "limit",
+    Z_PLUSINF = "+inf",
+    Z_MININF = "-inf"
 }
 
 turboredis.COMMANDS = {
@@ -230,120 +241,67 @@ end
 ---------------------------------------------------- Redis Protocol Helpers ---
 -------------------------------------------------------------------------------
 
-function turboredis.read_bulk_reply(iostream, len, callback, callback_arg)
-    iostream:read_bytes(len, function (data)
-        iostream:read_bytes(2, function ()
-            if callback_arg then
-                callback(callback_arg, data)
-            else
-                callback(data)
-            end
-        end)
+function turboredis.read_resp_array_reply(stream, n, callback, callback_arg)
+    turbo.ioloop.instance():add_callback(function ()
+        local out = {}
+        local i = 0
+        while i < n do
+            out[#out+1] = yield(task(turboredis.read_resp_reply, stream, false))
+            i = i + 1
+        end
+        if callback_arg then
+            callback(callback_arg, out)
+        else
+            callback(out)
+        end
     end)
 end
 
-function turboredis.read_multibulk_reply(iostream, num_replies, callback,
-                                         callback_arg)
-    local out = {}
-    local len
-    function loop()
-        iostream:read_until("\r\n", function (data)
-            function check()
-                if #out == num_replies then
-                    if callback_arg then
-                        callback(callback_arg, out)
-                    else
-                        callback(out)
-                    end
-                else
-                    loop()
-                end
-            end
-            local firstchar = data:sub(1,1)
-            if firstchar == "$" or firstchar == "*" then
-                if len == -1 then
-                    table.insert(out, nil)
-                    check()
-                else
-                    len = tonumber(data:strip():sub(2))
-                    if firstchar == "$" then
-                        turboredis.read_bulk_reply(iostream, len,
-                            function (data)
-                                table.insert(out, data)
-                                check()
-                            end)
-                    else
-                        turboredis.read_multibulk_reply(iostream, len,
-                            function(data)
-                                table.insert(out, data)
-                                check()
-                            end)
-                    end
-                end
-            elseif firstchar == ":" then
-                table.insert(out, tonumber(data:strip():sub(2)))
-                check()
-            elseif firstchar == "+" then
-                table.insert(out, true)
-                check()
-            elseif firstchar == "-" then
-                table.insert(out, false)
-                check()
-            else
-                table.insert(out, "Could not parse reply")
-                check()
-            end
-        end)
-    end
-    loop()
-end
+function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
+    turbo.ioloop.instance():add_callback(function ()
+        local part
+        local first
+        local len
+        local data
+        local is_ss = false
+        
+        part = yield(task(stream.read_until, stream, "\r\n"))
+        first = part:sub(1,1)
 
-function turboredis.read_reply(iostream, firstchar, callback, callback_arg)
-    function done(res)
+        if first == "+" or first == "-" then
+            is_ss = true
+            res = {first == "+", part:sub(2, part:len()-2)}
+        elseif first == "$" then
+            len = tonumber(part:sub(2, part:len()-2))
+            if len == -1 then
+                res = nil
+            else
+                data = yield(task(stream.read_bytes, stream, len+2))
+                res = data:sub(1, data:len()-2)
+            end
+        elseif first == "*" then
+            len = tonumber(part:sub(2, part:len()-2))
+            if len == -1 then
+                res = nil
+            else
+                res = yield(task(turboredis.read_resp_array_reply, stream, len))
+            end
+        elseif first == ":" then
+            res = tonumber(part:sub(2, part:len()-2))
+        else
+            res = {false, "turboredis: Error in reply from redis"}
+        end
+        if (not is_ss) and wrap then
+            -- Wrap result in table if not a status reply
+            res = {res}
+        end
         if callback_arg then
             callback(callback_arg, res)
         else
             callback(res)
         end
-    end
-    if firstchar == "+" then -- status
-        iostream:read_until("\r\n", function (data)
-            data = data:strip()
-            done({true, data})
-        end)
-    elseif firstchar == "-" then -- error
-        iostream:read_until("\r\n", function (data)
-            data = data:strip()
-            done({false, data})
-        end)
-    elseif firstchar == ":" then -- integer
-        iostream:read_until("\r\n", function (data)
-            done({tonumber(data:strip())})
-        end)
-    elseif firstchar == "$" or firstchar == "*" then
-        iostream:read_until("\r\n", function (data)
-            local len = tonumber(data:strip())
-            if len == -1 then
-                done({nil})
-            elseif len == 0 and firstchar == "*" then -- empty list or set
-                done({{}})
-            else
-                if firstchar == "$" then
-                    turboredis.read_bulk_reply(iostream, len, function (reply)
-                        done({reply})
-                    end)
-                else
-                    turboredis.read_multibulk_reply(iostream, len, function (reply)
-                        done({reply})
-                    end)
-                end
-            end
-        end)
-    else
-        done({nil, "Could not parse reply from redis."})
-    end
+    end)
 end
-
 
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------- Command ---
@@ -376,7 +334,7 @@ function turboredis.Command:_format_res(res)
                 return {out}
             end
         elseif self.cmd[1] == "HGETALL" then
-            out = {turboredis.from_kvlist(res[1])}
+            out = {turboredis.from_kvlist(res)}
         else
             for _, c in ipairs({"EXISTS", "EXPIRE",
                                 "EXPIREAT", "HEXISTS",
@@ -393,23 +351,20 @@ function turboredis.Command:_format_res(res)
     return out
 end
 
-function turboredis.Command:_handle_reply(firstchar)
-    turboredis.read_reply(self.iostream, firstchar, function (self, res)
-        local a1, a2
-        res = self:_format_res(res)
-        if self.callback_arg then
-            self.callback(self.callback_arg, unpack(res))
-        else
-            self.callback(unpack(res))
-        end
-    end, self)
+function turboredis.Command:_handle_reply(res)
+    res = self:_format_res(res)
+    if self.callback_arg then
+        self.callback(self.callback_arg, unpack(res))
+    else
+        self.callback(unpack(res))
+    end
 end
 
 function turboredis.Command:execute(callback, callback_arg)
     self.callback = callback
     self.callback_arg = callback_arg
     self.iostream:write(self.cmdstr, function()
-        self.iostream:read_bytes(1, self._handle_reply, self)
+        turboredis.read_resp_reply(self.iostream, true, self._handle_reply, self)
     end)
 end
 
@@ -566,7 +521,6 @@ function turboredis.BaseConnection:run_dual(cmd, callback, callback_arg)
     end
 end
 
-
 -------------------------------------------------------------------------------
 ---------------------------------------------------------------- Connection ---
 -------------------------------------------------------------------------------
@@ -622,15 +576,7 @@ turboredis.PUBSUB_COMMANDS = {
 turboredis.PubSubConnection = class("PubSubConnection", turboredis.BaseConnection)
 
 function turboredis.PubSubConnection:read_msg(callback, callback_arg)
-    self.iostream:read_until("\r\n", function (data)
-        local data = data:strip()
-        local prefix = data:sub(1, 1)
-        local len = tonumber(data:strip():sub(2))
-        assert(prefix == '*')
-        turboredis.read_multibulk_reply(self.iostream, len, function (data)
-            callback(callback_arg, data)
-        end)
-    end)
+    turboredis.read_resp_reply(self.iostream, false, callback, callback_arg)
 end
 
 function turboredis.PubSubConnection:start(callback, callback_arg)
