@@ -1954,7 +1954,7 @@ function TestTurboRedis:test_zunionstore()
     assertEquals(r[6], "10")
 end
 
-function TestTurboRedis:x_test_scan()
+function TestTurboRedis:test_scan()
     local r
     r = yield(self.con:set("foo", "bar"))
     assert(r)
@@ -1964,8 +1964,8 @@ function TestTurboRedis:x_test_scan()
     print(r)
     assertEquals(#r, 2)
     assertEquals(r[1], "0")
-    assert(r[1][1] == "bar" or r[1][1] == "foo")
-    assert(r[1][2] == "bar" or r[1][2] == "foo")
+    assert(r[2][1] == "bar" or r[2][1] == "foo")
+    assert(r[2][2] == "bar" or r[2][2] == "foo")
 end
 
 --[[
