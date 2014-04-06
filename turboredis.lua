@@ -151,7 +151,7 @@ turboredis.COMMANDS = {
     "SCRIPT LOAD",
     "SDIFF",
     "SDIFFSTORE",
-    -- SELECT (custom handling)
+    "SELECT",
     "SET",
     "SETBIT",
     "SETEX",
@@ -308,11 +308,11 @@ end
 -------------------------------------------------------------------------------
 
 turboredis.Command = class("Command")
-function turboredis.Command:initialize(cmd, iostream)
+function turboredis.Command:initialize(cmd, stream)
     self.ioloop = turbo.ioloop.instance()
     self.cmd = cmd
     self.cmdstr = turboredis.pack(cmd)
-    self.iostream = iostream
+    self.stream = stream
 end
 
 function turboredis.Command:_format_res(res)
@@ -363,13 +363,13 @@ end
 function turboredis.Command:execute(callback, callback_arg)
     self.callback = callback
     self.callback_arg = callback_arg
-    self.iostream:write(self.cmdstr, function()
-        turboredis.read_resp_reply(self.iostream, true, self._handle_reply, self)
+    self.stream:write(self.cmdstr, function()
+        turboredis.read_resp_reply(self.stream, true, self._handle_reply, self)
     end)
 end
 
 function turboredis.Command:execute_noreply(callback, callback_arg)
-    self.iostream:write(self.cmdstr, function()
+    self.stream:write(self.cmdstr, function()
         if callback_arg then
             callback(callback_arg, true)
         else
@@ -380,45 +380,42 @@ end
 
 
 -------------------------------------------------------------------------------
------------------------------------------------------------ Base Connection ---
+---------------------------------------------------------------- Connection ---
 -------------------------------------------------------------------------------
 
-turboredis.BaseConnection = class("BaseConnection")
-function turboredis.BaseConnection:initialize(host, port, kwargs)
+turboredis.Connection = class("Connection")
+function turboredis.Connection:initialize(host, port, kwargs)
     kwargs = kwargs or {}
     self.host = host or "127.0.0.1"
     self.port = port or 6379
     self.family = 2
-    self.ioloop = kwargs.io_loop or turbo.ioloop.instance()
+    self.ioloop = kwargs.ioloop or turbo.ioloop.instance()
     self.connect_timeout = kwargs.connect_timeout or 5
-    self.authenticated = false
-    self.selected = false
     self.pwd = nil
-    self.dbid = nil
 end
 
-function turboredis.BaseConnection:_connect_done(args)
+function turboredis.Connection:_connect_done(args)
     self.connect_timeout_ref = nil
     self.connect_coctx:set_state(turbo.coctx.states.DEAD)
     self.connect_coctx:set_arguments(args)
     self.connect_coctx:finalize_context()
 end
 
-function turboredis.BaseConnection:_handle_connect_timeout()
+function turboredis.Connection:_handle_connect_timeout()
     self:_connect_done({false, {err=-1, msg="Connect timeout"}})
 end
 
-function turboredis.BaseConnection:_handle_connect_error(err, strerror)
+function turboredis.Connection:_handle_connect_error(err, strerror)
     self.ioloop:remove_timeout(self.connect_timeout_ref)
     self:_connect_done({false, {err=err, msg=strerror}})
 end
 
-function turboredis.BaseConnection:_handle_connect()
+function turboredis.Connection:_handle_connect()
     self.ioloop:remove_timeout(self.connect_timeout_ref)
     self:_connect_done({true})
 end
 
-function turboredis.BaseConnection:connect(timeout, callback, callback_arg)
+function turboredis.Connection:connect(timeout, callback, callback_arg)
     local timeout
     local connect_timeout_ref
     local ctx
@@ -464,8 +461,8 @@ function turboredis.BaseConnection:connect(timeout, callback, callback_arg)
     self.sock, msg = turbo.socket.new_nonblock_socket(self.family,
                                                       turbo.socket.SOCK_STREAM,
                                                       0)
-    self.iostream = turbo.iostream.IOStream:new(self.sock, self.ioloop)
-    local rc, msg = self.iostream:connect(self.host,
+    self.stream = turbo.iostream.IOStream:new(self.sock, self.ioloop)
+    local rc, msg = self.stream:connect(self.host,
                                           self.port,
                                           self.family,
                                           handle_connect,
@@ -483,18 +480,18 @@ function turboredis.BaseConnection:connect(timeout, callback, callback_arg)
     end
 end
 
-function turboredis.BaseConnection:run(cmd, callback, callback_arg)
-    return turboredis.Command:new(cmd, self.iostream):execute(callback,
+function turboredis.Connection:run(cmd, callback, callback_arg)
+    return turboredis.Command:new(cmd, self.stream):execute(callback,
                                                                callback_arg)
 end
 
-function turboredis.BaseConnection:run_noreply(cmd, callback, callback_arg)
-    return turboredis.Command:new(cmd, self.iostream):execute_noreply(callback,
+function turboredis.Connection:run_noreply(cmd, callback, callback_arg)
+    return turboredis.Command:new(cmd, self.stream):execute_noreply(callback,
         callback_arg)
 end
 
-function turboredis.BaseConnection:run_mod(cmd, mod, callback, callback_arg)
-    turboredis.Command:new(cmd, self.iostream):execute(function (...)
+function turboredis.Connection:run_mod(cmd, mod, callback, callback_arg)
+    turboredis.Command:new(cmd, self.stream):execute(function (...)
         local args = mod(unpack({...}))
         if callback_arg then
             table.insert(args, 1, callback_arg)
@@ -505,28 +502,21 @@ function turboredis.BaseConnection:run_mod(cmd, mod, callback, callback_arg)
     end)
 end
 
-function turboredis.BaseConnection:run_mod_dual(cmd, mod, callback, callback_arg)
+function turboredis.Connection:run_mod_dual(cmd, mod, callback, callback_arg)
     if callback then
         return self:run_mod(cmd, mod, callback, callback_arg)
     else
-        return turbo.async.task(self.run_mod, self, cmd, mod)
+        return task(self.run_mod, self, cmd, mod)
     end
 end
 
-function turboredis.BaseConnection:run_dual(cmd, callback, callback_arg)
+function turboredis.Connection:run_dual(cmd, callback, callback_arg)
     if callback then
         return self:run(cmd, callback, callback_arg)
     else
-        return turbo.async.task(self.run, self, cmd)
+        return task(self.run, self, cmd)
     end
 end
-
-
--------------------------------------------------------------------------------
----------------------------------------------------------------- Connection ---
--------------------------------------------------------------------------------
-
-turboredis.Connection = class("Connection", turboredis.BaseConnection)
 
 for _, v in ipairs(turboredis.COMMANDS) do
     turboredis.Connection[v:lower():gsub(" ", "_")] = function (self, ...)
@@ -545,15 +535,9 @@ for _, v in ipairs(turboredis.COMMANDS) do
         if callback then
             return self:run(cmd, callback, callback_arg)
         else
-            return turbo.async.task(self.run, self, cmd)
+            return task(self.run, self, cmd)
         end
     end
-end
-
-function turboredis.Connection:select(dbid, callback, callback_arg)
-    self.selected = true
-    self.dbid = dbid
-    return self:run_dual({"SELECT", dbid}, callback, callback_arg)
 end
 
 function turboredis.Connection:config_get(key, callback, callback_arg)
@@ -574,10 +558,10 @@ turboredis.PUBSUB_COMMANDS = {
     "UNSUBSCRIBE"
 }
 
-turboredis.PubSubConnection = class("PubSubConnection", turboredis.BaseConnection)
+turboredis.PubSubConnection = class("PubSubConnection", turboredis.Connection)
 
 function turboredis.PubSubConnection:read_msg(callback, callback_arg)
-    turboredis.read_resp_reply(self.iostream, false, callback, callback_arg)
+    turboredis.read_resp_reply(self.stream, false, callback, callback_arg)
 end
 
 function turboredis.PubSubConnection:start(callback, callback_arg)
@@ -585,7 +569,7 @@ function turboredis.PubSubConnection:start(callback, callback_arg)
     self.callback_arg = callback_arg
     turbo.ioloop.instance():add_callback(function ()
         while true do
-            local msg = yield(turbo.async.task(self.read_msg, self))
+            local msg = yield(task(self.read_msg, self))
             local res = {}
             res.msgtype = msg[1]
             if res.msgtype == "psubscribe" then
@@ -631,7 +615,7 @@ for _, v in ipairs(turboredis.PUBSUB_COMMANDS) do
         if callback then
             return self:run_noreply(cmd, callback, callback_arg)
         else
-            return turbo.async.task(self.run_noreply, self, cmd)
+            return task(self.run_noreply, self, cmd)
         end
     end
 end
