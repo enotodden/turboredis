@@ -43,7 +43,7 @@ turboredis = {
 
 turboredis.COMMANDS = {
     "APPEND",
-    -- AUTH (not supported yet)
+    "AUTH",
     "BGREWRITEAOF",
     "BGSAVE",
     "BITCOUNT",
@@ -126,12 +126,10 @@ turboredis.COMMANDS = {
     "PING",
     "PSETEX",
     -- PSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
-
     -- PUBSUB (divided into the subcommands below)
     "PUBSUB CHANNELS",
     "PUBSUB NUMSUB",
     "PUBSUB NUMPAT",
-
     "PTTL",
     "PUBLISH",
     -- PUNSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
@@ -237,6 +235,7 @@ function turboredis.flatten(t)
     return flat_t
 end
 
+
 -------------------------------------------------------------------------------
 ---------------------------------------------------- Redis Protocol Helpers ---
 -------------------------------------------------------------------------------
@@ -302,6 +301,7 @@ function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
         end
     end)
 end
+
 
 -------------------------------------------------------------------------------
 ------------------------------------------------------------------- Command ---
@@ -458,7 +458,7 @@ function turboredis.BaseConnection:connect(timeout, callback, callback_arg)
 
     self.ioloop = turbo.ioloop.instance()
     timeout = (timeout or self.connect_timeout) * 1000 +
-        turbo.util.gettimeofday()
+              turbo.util.gettimeofday()
     connect_timeout_ref = self.ioloop:add_timeout(timeout,
                                                    handle_connect_timeout)
     self.sock, msg = turbo.socket.new_nonblock_socket(self.family,
@@ -520,6 +520,7 @@ function turboredis.BaseConnection:run_dual(cmd, callback, callback_arg)
         return turbo.async.task(self.run, self, cmd)
     end
 end
+
 
 -------------------------------------------------------------------------------
 ---------------------------------------------------------------- Connection ---
