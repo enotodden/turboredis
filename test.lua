@@ -114,15 +114,23 @@ function TestTurboRedis:test_append()
     assertEquals(r, "123456")
 end
 
--- REDIS_PASSWORD = nil
--- if REDIS_PASSWORD then
---    function TestTurboRedis:test_auth()
---        local r
---        r = yield(self.con.auth(REDIS_PASSWORD))
---        assert(r)
---    end
--- end
---
+function TestTurboRedis:test_auth()
+    local r
+    r = yield(self.con:set("foo", "bar"))
+    assertEquals(r, true)
+    r = yield(self.con:config_set("requirepass", "hello123"))
+    assertEquals(r, true)
+    r = yield(self.con:get("foo"))
+    assertEquals(r, false)
+    r = yield(self.con:auth("hello"))
+    assertEquals(r, false)
+    r = yield(self.con:auth("hello123"))
+    assertEquals(r, true)
+    r = yield(self.con:get("foo"))
+    assertEquals(r, "bar")
+    r = yield(self.con:config_set("requirepass", ""))
+    assertEquals(r, true)
+end
 
 if options.include_unsupported then
     function TestTurboRedis:test_bgrewriteaof()
