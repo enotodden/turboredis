@@ -391,7 +391,6 @@ function turboredis.Connection:initialize(host, port, kwargs)
     self.family = 2
     self.ioloop = kwargs.ioloop or turbo.ioloop.instance()
     self.connect_timeout = kwargs.connect_timeout or 5
-    self.pwd = nil
 end
 
 function turboredis.Connection:_connect_done(args)
