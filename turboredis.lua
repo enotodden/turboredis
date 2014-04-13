@@ -1,14 +1,13 @@
+-- # TurboRedis
+--
+-- Redis library for Turbo
+--
+
 local turbo = require("turbo")
 local middleclass =  require("turbo.3rdparty.middleclass")
 local ffi = require("ffi")
 local yield = coroutine.yield
 local task = turbo.async.task
-
-function trace (event, line)
-    local s = debug.getinfo(2).short_src
-    print(s .. ":" .. line)
-end
---debug.sethook(trace, "l")
 
 -- Range iterator from http://lua-users.org/wiki/RangeIterator
 local function range(from, to, step)
@@ -28,7 +27,13 @@ turboredis = {
     -- turboredis will not convert key-value pair lists to dicts
     -- and will not convert integer replies from certain commands to
     -- booleans for convenience.
+    --
+    -- TODO: This should be made a per-connection value to avoid
+    -- problems if the user wants to use different modes in the same
+    -- application.
+    --
     purist = false,
+    -- Some aliases for strings used in redis commands
     SORT_DESC = "desc",
     SORT_ASC = "asc",
     SORT_LIMIT = "limit",
@@ -41,6 +46,7 @@ turboredis = {
     Z_MININF = "-inf"
 }
 
+-- List of redis commands to generate functions for
 turboredis.COMMANDS = {
     "APPEND",
     "AUTH",
@@ -114,7 +120,7 @@ turboredis.COMMANDS = {
     "LTRIM",
     "MGET",
     "MIGRATE",
-    -- MONITOR (not yet supported)
+    --| MONITOR (not yet supported)
     "MOVE",
     "MSET",
     "MSETNX",
@@ -125,14 +131,14 @@ turboredis.COMMANDS = {
     "PEXPIREAT",
     "PING",
     "PSETEX",
-    -- PSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
-    -- PUBSUB (divided into the subcommands below)
+    --| PSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
+    --| PUBSUB (divided into the subcommands below)
     "PUBSUB CHANNELS",
     "PUBSUB NUMSUB",
     "PUBSUB NUMPAT",
     "PTTL",
     "PUBLISH",
-    -- PUNSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
+    --| PUNSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
     "QUIT",
     "RANDOMKEY",
     "RENAME",
@@ -172,14 +178,14 @@ turboredis.COMMANDS = {
     "SRANDMEMBER",
     "SREM",
     "STRLEN",
-    -- SUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
+    --| SUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
     "SUNION",
     "SUNIONSTORE",
     "SYNC",
     "TIME",
     "TTL",
     "TYPE",
-    -- UNSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
+    --| UNSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
     "UNWATCH",
     "WATCH",
     "ZADD",
@@ -204,6 +210,7 @@ turboredis.COMMANDS = {
     "ZSCAN"
 }
 
+-- Convert a table of command+arguments to redis format.
 function turboredis.pack(t)
     local out = "*" .. tostring(#t) .. "\r\n"
     for _, v in ipairs(t) do
@@ -212,6 +219,8 @@ function turboredis.pack(t)
     return out
 end
 
+-- Convert a list of key value pairs ({key, value, key, value, ...})
+-- to a table of key value pairs ({key=value, key=value, ...})
 function turboredis.from_kvlist(inp)
     local out={}
     local o = false
@@ -224,6 +233,7 @@ function turboredis.from_kvlist(inp)
     return out
 end
 
+-- Flatten a table
 function turboredis.flatten(t)
     if type(t) ~= "table" then return {t} end
     local flat_t = {}
@@ -235,11 +245,10 @@ function turboredis.flatten(t)
     return flat_t
 end
 
+--## Redis protocol helpers
 
--------------------------------------------------------------------------------
----------------------------------------------------- Redis Protocol Helpers ---
--------------------------------------------------------------------------------
-
+-- Read a redis array reply.
+-- Calls `turboredis.read_resp_reply()` on each element.
 function turboredis.read_resp_array_reply(stream, n, callback, callback_arg)
     turbo.ioloop.instance():add_callback(function ()
         local out = {}
@@ -256,6 +265,7 @@ function turboredis.read_resp_array_reply(stream, n, callback, callback_arg)
     end)
 end
 
+-- Read a Redis reply
 function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
     turbo.ioloop.instance():add_callback(function ()
         local part
@@ -263,13 +273,17 @@ function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
         local len
         local data
         local is_ss = false
-        
+
+        --> Read the first line of the reply to figure out
+        --> reply type and length.
         part = yield(task(stream.read_until, stream, "\r\n"))
         first = part:sub(1,1)
 
+        --> Handle a 'simple string' or error reply.
         if first == "+" or first == "-" then
             is_ss = true
             res = {first == "+", part:sub(2, part:len()-2)}
+        --> Handle a 'bulk string' reply.
         elseif first == "$" then
             len = tonumber(part:sub(2, part:len()-2))
             if len == -1 then
@@ -278,6 +292,8 @@ function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
                 data = yield(task(stream.read_bytes, stream, len+2))
                 res = data:sub(1, data:len()-2)
             end
+        --> Handle an array reply, we call turboredis.read_resp_array_reply
+        --> if the length is not -1 (nil)
         elseif first == "*" then
             len = tonumber(part:sub(2, part:len()-2))
             if len == -1 then
@@ -285,13 +301,16 @@ function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
             else
                 res = yield(task(turboredis.read_resp_array_reply, stream, len))
             end
+        --> Handle an integer reply
         elseif first == ":" then
             res = tonumber(part:sub(2, part:len()-2))
         else
+            --> Should never get here, but if we do, we fail in
+            --> the same way as with an error reply.
             res = {false, "turboredis: Error in reply from redis"}
         end
         if (not is_ss) and wrap then
-            -- Wrap result in table if not a status reply
+            --> Wrap result in a table if not a 'simple string' or 'error' reply
             res = {res}
         end
         if callback_arg then
@@ -303,9 +322,10 @@ function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
 end
 
 
--------------------------------------------------------------------------------
-------------------------------------------------------------------- Command ---
--------------------------------------------------------------------------------
+--## Command
+--
+-- Created with the IOStream instance of the `Connection`
+--
 
 turboredis.Command = class("Command")
 function turboredis.Command:initialize(cmd, stream)
@@ -315,6 +335,9 @@ function turboredis.Command:initialize(cmd, stream)
     self.stream = stream
 end
 
+-- Format reply from Redis for convenience
+--
+--> NOTE: This is not consistent and needs some work
 function turboredis.Command:_format_res(res)
     local out = res
     if not turboredis.purist then
@@ -322,7 +345,7 @@ function turboredis.Command:_format_res(res)
             if self.cmd[2] == "GET" then
                 out = {turboredis.from_kvlist(res[1])}
             end
-        elseif self.cmd[1] == "INCRBYFLOAT" or 
+        elseif self.cmd[1] == "INCRBYFLOAT" or
                self.cmd[1] == "PTTL" then
             out = {tonumber(res[1])}
         elseif self.cmd[1] == "PUBSUB" then
@@ -351,6 +374,11 @@ function turboredis.Command:_format_res(res)
     return out
 end
 
+-- Handle a reply from Redis.
+--
+-- Calls `_format_res` to format the reply and then the callback passed to
+-- `:execute()`
+--
 function turboredis.Command:_handle_reply(res)
     res = self:_format_res(res)
     if self.callback_arg then
@@ -368,6 +396,12 @@ function turboredis.Command:execute(callback, callback_arg)
     end)
 end
 
+-- Execute the command, but unlike `:execute()` we don't try to
+-- read a reply.
+--
+-- This is useful for `SUBSCRIBE/UNSUBSCRIBE` commands which 'replies'
+-- through PubSub messages.
+--
 function turboredis.Command:execute_noreply(callback, callback_arg)
     self.stream:write(self.cmdstr, function()
         if callback_arg then
@@ -379,9 +413,9 @@ function turboredis.Command:execute_noreply(callback, callback_arg)
 end
 
 
--------------------------------------------------------------------------------
----------------------------------------------------------------- Connection ---
--------------------------------------------------------------------------------
+--## Connection
+--
+-- The main class that handles connecting and issuing commands.
 
 turboredis.Connection = class("Connection")
 function turboredis.Connection:initialize(host, port, kwargs)
@@ -414,6 +448,9 @@ function turboredis.Connection:_handle_connect()
     self:_connect_done({true})
 end
 
+-- Connect to Redis
+--
+-- FIXME: This works but looks like sh*t and needs to be re-worked
 function turboredis.Connection:connect(timeout, callback, callback_arg)
     local timeout
     local connect_timeout_ref
@@ -479,11 +516,13 @@ function turboredis.Connection:connect(timeout, callback, callback_arg)
     end
 end
 
+-- Create a new `Command` and run it.
 function turboredis.Connection:run(cmd, callback, callback_arg)
     return turboredis.Command:new(cmd, self.stream):execute(callback,
-                                                               callback_arg)
+                                                            callback_arg)
 end
 
+-- Run a command without reading the a reply
 function turboredis.Connection:run_noreply(cmd, callback, callback_arg)
     return turboredis.Command:new(cmd, self.stream):execute_noreply(callback,
         callback_arg)
@@ -501,14 +540,22 @@ function turboredis.Connection:run_mod(cmd, mod, callback, callback_arg)
     end)
 end
 
-function turboredis.Connection:run_mod_dual(cmd, mod, callback, callback_arg)
-    if callback then
-        return self:run_mod(cmd, mod, callback, callback_arg)
-    else
-        return task(self.run_mod, self, cmd, mod)
-    end
-end
-
+-- ####Dual callback/yield interface.
+--
+-- If the user has not supplied a callback
+-- we use a `turbo.async.task`.
+--
+-- This allows all commands to be called like:
+-- |>>>
+--      r = yield(con:get("foo"))
+-- <<<|
+-- or with a callback, like:
+-- |>>>
+--      con.get("foo", function (r)
+--          print(r)
+--      end)
+-- <<<|
+--
 function turboredis.Connection:run_dual(cmd, callback, callback_arg)
     if callback then
         return self:run(cmd, callback, callback_arg)
@@ -517,6 +564,22 @@ function turboredis.Connection:run_dual(cmd, callback, callback_arg)
     end
 end
 
+-- The same as `run_dual()`, except that it takes the `mod` argument
+-- and passes it on to `run_mod()`
+function turboredis.Connection:run_mod_dual(cmd, mod, callback, callback_arg)
+    if callback then
+        return self:run_mod(cmd, mod, callback, callback_arg)
+    else
+        return task(self.run_mod, self, cmd, mod)
+    end
+end
+
+
+-- Dynamically generate functions for all commands in `turboredis.COMMANDS`
+--
+-- This applies to all normal commands except for `CONFIG GET` and
+-- `SUBSCRIBE/UNSUBSCRIBE` pubsub commands.
+--
 for _, v in ipairs(turboredis.COMMANDS) do
     turboredis.Connection[v:lower():gsub(" ", "_")] = function (self, ...)
         local cmd = turboredis.flatten({v:split(" "), ...})
@@ -531,6 +594,7 @@ for _, v in ipairs(turboredis.COMMANDS) do
             cmd[#cmd-1] = nil
             cmd[#cmd] = nil
         end
+
         if callback then
             return self:run(cmd, callback, callback_arg)
         else
@@ -546,9 +610,7 @@ function turboredis.Connection:config_get(key, callback, callback_arg)
 end
 
 
--------------------------------------------------------------------------------
--------------------------------------------------------------------- PUBSUB ---
--------------------------------------------------------------------------------
+--## PUBSUB
 
 turboredis.PUBSUB_COMMANDS = {
     "SUBSCRIBE",
