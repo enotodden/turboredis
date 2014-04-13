@@ -1,6 +1,16 @@
 -- # TurboRedis
+--   *  Redis library for Turbo  *
+
 --
--- Redis library for Turbo
+-- Source: 
+--  [http://github.com/enotodden/turboredis](http://github.com/enotodden/turboredis)
+--
+-- Documented source: 
+--  [http://enotodden.github.io/turboredis](http://enotodden.github.io/turboredis)
+--
+-- License: *MIT* (see LICENSE)
+
+--
 --
 
 local turbo = require("turbo")
