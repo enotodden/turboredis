@@ -133,7 +133,6 @@ This behavior can be disabled (purist mode) by setting `turboredis.purist = true
 
 ### Roadmap:
 
-- Add support for `PF*` commands.
 - Add more examples. 
 - Make 'reply formatting' more consistent across commands.
 - Write some documentation.
