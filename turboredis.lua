@@ -421,7 +421,6 @@ function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
 end
 
 function turboredis.parse_client_list(listtext)
-    print(listtext)
     local lines = listtext:strip():split("\n")
     local entries = {}
     for i, line in ipairs(lines) do
