@@ -157,7 +157,7 @@ turboredis.COMMANDS = {
     "BRPOP",
     "BRPOPLPUSH",
     "CLIENT KILL",
-    "CLIENT LIST", -- FIXME: Should parse this..
+    "CLIENT LIST",
     "CLIENT GETNAME",
     "CLIENT SETNAME",
     "CONFIG GET",
