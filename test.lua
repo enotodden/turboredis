@@ -28,7 +28,8 @@ local options = {
     host="127.0.0.1",
     port=6379,
     fast=false,
-    include_unsupported=false
+    include_unsupported=false,
+    unstable=false
 }
 
 local i = 1
@@ -966,6 +967,50 @@ if not options.fast then
     end
 end
 
+if options.unstable then
+    function TestTurboRedis:test_pfadd()
+        local r
+        r = yield(self.con:pfadd("foohll", "foo"))
+        assertEquals(r, 1)
+        r = yield(self.con:pfadd("foohll", "bar"))
+        assertEquals(r, 1)
+        r = yield(self.con:pfadd("foohll", "foo"))
+        assertEquals(r, 0)
+        r = yield(self.con:pfadd("foohll", "foo", "bar", "foobar"))
+        assertEquals(r, 1)
+        r = yield(self.con:pfcount("foohll"))
+        assertEquals(r, 3)
+    end
+
+    function TestTurboRedis:test_pfcount()
+        local r
+        r = yield(self.con:pfadd("foohll", "foo"))
+        assertEquals(r, 1)
+        r = yield(self.con:pfcount("foohll"))
+        assertEquals(r, 1)
+        r = yield(self.con:pfadd("foohll", "bar"))
+        assertEquals(r, 1)
+        r = yield(self.con:pfcount("foohll"))
+        assertEquals(r, 2)
+        r = yield(self.con:pfadd("foohll", "foo"))
+        assertEquals(r, 0)
+        r = yield(self.con:pfcount("foohll"))
+        assertEquals(r, 2)
+    end
+
+    function TestTurboRedis:test_pfmerge()
+        local r
+        r = yield(self.con:pfadd("foohll", "foo", "bar"))
+        assertEquals(r, 1)
+        r = yield(self.con:pfadd("barhll", "foo", "bar", "foobar"))
+        assertEquals(r, 1)
+        r = yield(self.con:pfmerge("foobarhll", "foohll", "barhll"))
+        assertEquals(r, true)
+        r = yield(self.con:pfcount("foobarhll"))
+        assertEquals(r, 3)
+    end
+end
+
 function TestTurboRedis:test_ping()
     local r
     r = yield(self.con:ping())
@@ -1010,7 +1055,7 @@ if options.unstable then
         assert(r)
         r = yield(self.con:quit())
         assert(r)
-        assert(self.con.iostream:closed())
+        assert(self.con.stream:closed())
     end
 end
 
@@ -1965,11 +2010,8 @@ end
 function TestTurboRedis:test_scan()
     local r
     r = yield(self.con:set("foo", "bar"))
-    assert(r)
     r = yield(self.con:set("bar", "foo"))
-    assert(r)
     r = yield(self.con:scan(0))
-    print(r)
     assertEquals(#r, 2)
     assertEquals(r[1], "0")
     assert(r[2][1] == "bar" or r[2][1] == "foo")
