@@ -96,6 +96,7 @@
 --     ioloop:start()
 
 --
+-- ------------------
 --
 
 local turbo = require("turbo")
@@ -224,6 +225,9 @@ turboredis.COMMANDS = {
     "PERSIST",
     "PEXPIRE",
     "PEXPIREAT",
+    "PFADD",
+    "PFCOUNT",
+    "PFMERGE",
     "PING",
     "PSETEX",
     --| PSUBSCRIBE (in turboredis.PUBSUB_COMMANDS)
