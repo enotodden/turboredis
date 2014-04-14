@@ -1,14 +1,99 @@
--- # TurboRedis
---   *  Redis library for Turbo  *
-
 --
--- Source: 
+-- TurboRedis
+-- ==========
+--
+--### [Redis](http://redis.io) library for [Turbo](https://github.com/kernelsauce/turbo)
+--
+-- Source:
 --  [http://github.com/enotodden/turboredis](http://github.com/enotodden/turboredis)
 --
--- Documented source: 
+-- Documented source:
 --  [http://enotodden.github.io/turboredis](http://enotodden.github.io/turboredis)
 --
--- License: *MIT* (see LICENSE)
+-- License: __MIT__ (see LICENSE)
+
+--### Features
+--
+--  - Support for most Redis commands
+--  - Pub/Sub support
+--  - No dependencies other than Turbo and Redis
+--  - Everything is in a single file.
+--  - Dual turbo.async.task/callback interface for all 'normal' commands
+
+--### Get started. Hello world example:
+--
+--     local turbo = require("turbo")
+--     local turboredis = require("turboredis")
+--     local yield = coroutine.yield
+--
+--     turbo.ioloop.instance():add_callback(function ()
+--         local redis = turboredis.Connection:new("127.0.0.1", 6379)
+--         local r = yield(redis:connect())
+--         if not r then
+--             print("Could not connect to Redis")
+--             return
+--         end
+--
+--         yield(redis:set("hello", "Hello "))
+--         yield(redis:set("world", "World!"))
+--
+--         print("# " .. yield(redis:get("hello")) .. yield(redis:get("world")))
+--
+--         turbo.ioloop.instance():close()
+--     end)
+--     turbo.ioloop.instance():start()
+--
+
+--### PubSub Example:
+--
+--     local turbo = require("turbo")
+--     local turboredis = require("turboredis")
+--     local yield = coroutine.yield
+--     local ioloop = turbo.ioloop.instance()
+--
+--     ioloop:add_callback(function ()
+--         -- Create a normal redis connection for publishing
+--         local pubcon = turboredis.Connection:new("127.0.0.1", 6379)
+--
+--         -- Create a PubSub Connection for subscribing
+--         -- This has the subscriber commands
+--         local subcon = turboredis.PubSubConnection:new("127.0.0.1", 6379)
+--
+--         -- Connect both
+--         yield(pubcon:connect())
+--         yield(subcon:connect())
+--
+--         -- Subscribe to the channel 'hello.msgs'
+--         yield(subcon:subscribe("hello.msgs"))
+--
+--         -- Wait for messages.
+--         -- After start() is called, no commands other than
+--         -- subscribe/unsubscribe commands can be used.
+--         subcon:start(function (msg)
+--             print("NEW MESSAGE:")
+--             print("  Message type: " .. msg.msgtype)
+--             print("  Channel: " .. msg.channel)
+--             print("  Data: " .. msg.data)
+--             print("--")
+--
+--             -- If the message is 'exit', close the IOLoop
+--             if msg.data == "exit" then
+--                 ioloop:close()
+--             end
+--         end)
+--
+--         -- Publish messages
+--         yield(pubcon:publish("hello.msgs", "Hello "))
+--
+--         ioloop:add_timeout(turbo.util.gettimemonotonic() + 1000, function ()
+--             yield(pubcon:publish("hello.msgs", "World!!"))
+--         end)
+--
+--         ioloop:add_timeout(turbo.util.gettimemonotonic() + 2000, function ()
+--             yield(pubcon:publish("hello.msgs", "exit"))
+--         end)
+--     end)
+--     ioloop:start()
 
 --
 --
@@ -550,21 +635,20 @@ function turboredis.Connection:run_mod(cmd, mod, callback, callback_arg)
     end)
 end
 
--- ####Dual callback/yield interface.
+--####Dual callback/yield interface.
 --
 -- If the user has not supplied a callback
 -- we use a `turbo.async.task`.
 --
 -- This allows all commands to be called like:
--- |>>>
+--
 --      r = yield(con:get("foo"))
--- <<<|
+--
 -- or with a callback, like:
--- |>>>
+--
 --      con.get("foo", function (r)
 --          print(r)
 --      end)
--- <<<|
 --
 function turboredis.Connection:run_dual(cmd, callback, callback_arg)
     if callback then
