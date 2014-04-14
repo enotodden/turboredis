@@ -245,7 +245,10 @@ end
 function TestTurboRedis:test_client_list()
     local r
     r = yield(self.con:client_list())
-    assert(r) -- TODO: Test properly
+    assertEquals(type(r), "table")
+    assert(#r >= 1)
+    assert(type(r[1].fd) == "number")
+    -- FIXME: Write serious test for this?
 end
 
 function TestTurboRedis:test_client_getname()
