@@ -351,7 +351,7 @@ end
 --    argument to `callback`.
 --
 function turboredis.read_resp_array_reply(stream, n, callback, callback_arg)
-    turbo.ioloop.instance():add_callback(function ()
+    stream.io_loop:add_callback(function ()
         local out = {}
         local i = 0
         while i < n do
@@ -856,7 +856,7 @@ end
 function turboredis.PubSubConnection:start(callback, callback_arg)
     self.callback = callback
     self.callback_arg = callback_arg
-    turbo.ioloop.instance():add_callback(function ()
+    self.ioloop:add_callback(function ()
         while true do
             local msg = yield(task(self.read_msg, self))
             local res = {}
@@ -879,7 +879,7 @@ function turboredis.PubSubConnection:start(callback, callback_arg)
                 res.data = msg[3]
             end
             if self.callback_arg then
-                self.callback(callback_arg, res)
+                self.callback(self.callback_arg, res)
             else
                 self.callback(res)
             end
