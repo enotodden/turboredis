@@ -119,16 +119,6 @@ local function range(from, to, step)
 end
 
 turboredis = {
-    -- If purist is set to true
-    -- turboredis will not convert key-value pair lists to dicts
-    -- and will not convert integer replies from certain commands to
-    -- booleans for convenience.
-    --
-    -- TODO: This should be made a per-connection value to avoid
-    -- problems if the user wants to use different modes in the same
-    -- application.
-    --
-    purist = false,
     -- Some aliases for strings used in redis commands
     SORT_DESC = "desc",
     SORT_ASC = "asc",
@@ -445,11 +435,12 @@ end
 --
 
 turboredis.Command = class("Command")
-function turboredis.Command:initialize(cmd, stream)
+function turboredis.Command:initialize(cmd, stream, opts)
     self.ioloop = turbo.ioloop.instance()
     self.cmd = cmd
     self.cmdstr = turboredis.pack(cmd)
     self.stream = stream
+    self.purist = opts.purist ~= nil and opts.purist or false
 end
 
 -- Format reply from Redis for convenience
@@ -457,7 +448,7 @@ end
 --> NOTE: This is not consistent and needs some work
 function turboredis.Command:_format_res(res)
     local out = res
-    if not turboredis.purist then
+    if not self.purist then
         if self.cmd[1] == "CONFIG" then
             if self.cmd[2] == "GET" then
                 out = {turboredis.from_kvlist(res[1])}
@@ -539,13 +530,14 @@ end
 -- The main class that handles connecting and issuing commands.
 
 turboredis.Connection = class("Connection")
-function turboredis.Connection:initialize(host, port, kwargs)
-    kwargs = kwargs or {}
+function turboredis.Connection:initialize(host, port, opts)
+    opts = opts or {}
     self.host = host or "127.0.0.1"
     self.port = port or 6379
     self.family = 2
-    self.ioloop = kwargs.ioloop or turbo.ioloop.instance()
-    self.connect_timeout = kwargs.connect_timeout or 5
+    self.ioloop = opts.ioloop or turbo.ioloop.instance()
+    self.connect_timeout = opts.connect_timeout or 5
+    self.purist = opts.purist ~= nil and opts.purist or false
 end
 
 function turboredis.Connection:_connect_done(args)
@@ -639,18 +631,25 @@ end
 
 -- Create a new `Command` and run it.
 function turboredis.Connection:run(cmd, callback, callback_arg)
-    return turboredis.Command:new(cmd, self.stream):execute(callback,
-                                                            callback_arg)
+    local command = turboredis.Command:new(cmd, self.stream, {
+        purist=self.purist
+    })
+    return command:execute(callback, callback_arg)
 end
 
 -- Run a command without reading the a reply
 function turboredis.Connection:run_noreply(cmd, callback, callback_arg)
-    return turboredis.Command:new(cmd, self.stream):execute_noreply(callback,
-        callback_arg)
+    local command = turboredis.Command:new(cmd, self.stream, {
+        purist=self.purist
+    })
+    return command:execute_noreply(callback, callback_arg)
 end
 
 function turboredis.Connection:run_mod(cmd, mod, callback, callback_arg)
-    turboredis.Command:new(cmd, self.stream):execute(function (...)
+    local command = turboredis.Command:new(cmd, self.stream, {
+        purist=self.purist
+    })
+    command:execute(function (...)
         local args = mod(unpack({...}))
         if callback_arg then
             table.insert(args, 1, callback_arg)
