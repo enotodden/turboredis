@@ -99,6 +99,22 @@
 -- ------------------
 --
 
+-- Commonly used parameters:
+--
+-- - `cmd[table]`: A list of command name + optional sub-command name +
+--   arguments.
+--   Examples:
+--      - `{"GET", "foo"}`
+--      - `{"CONFIG", "GET", "appendonly"}`
+--
+-- - `callback[function]`: Callback that will be called when the function's
+--   operation is done. Usually a reply.
+--
+-- - `callback_arg[any except nil]`: Argument that will be passed as the
+--   first argument to the corresponding callback. Should never be set
+--   if callback is `nil`.
+--
+
 local turbo = require("turbo")
 local middleclass =  require("turbo.3rdparty.middleclass")
 local ffi = require("ffi")
@@ -345,11 +361,6 @@ end
 --
 -- - `n[int]:` Number of elements in the array reply.
 --
--- - `callback[function]`: Callback.
---
--- - `callback_arg`: Optional argument to pass as the first
---    argument to `callback`.
---
 function turboredis.read_resp_array_reply(stream, n, callback, callback_arg)
     stream.io_loop:add_callback(function ()
         local out = {}
@@ -374,11 +385,6 @@ end
 --
 -- - `wrap[bool]`: Wether or not to wrap the result in a table (if the reply
 --   is not an error or 'simple string' reply.
---
--- - `callback[function]`: Callback.
---
--- - `callback_arg`: Optional argument to pass as the first
---    argument to `callback`.
 --
 function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
     turbo.ioloop.instance():add_callback(function ()
@@ -673,16 +679,6 @@ function turboredis.Connection:connect(callback, callback_arg)
 end
 
 -- Create a new `Command` and run it.
---
--- Parameters:
---
--- - `cmd[table]`: List of command+arguments (`{"GET", "FOO"}`)
---
--- - `callback[function]`: Callback.
---
--- - `callback_arg`: Optional argument to pass as the first
---    argument to `callback`.
---
 function turboredis.Connection:run(cmd, callback, callback_arg)
     local command = turboredis.Command:new(cmd, self.stream, {
         purist=self.purist
@@ -691,16 +687,6 @@ function turboredis.Connection:run(cmd, callback, callback_arg)
 end
 
 -- Run a command without reading the reply
---
--- Parameters:
---
--- - `cmd[table]`: List of command+arguments (`{"GET", "FOO"}`)
---
--- - `callback[function]`: Callback.
---
--- - `callback_arg`: Optional argument to pass as the first
---    argument to `callback`.
---
 function turboredis.Connection:run_noreply(cmd, callback, callback_arg)
     local command = turboredis.Command:new(cmd, self.stream, {
         purist=self.purist
@@ -710,17 +696,6 @@ end
 
 -- Run a command with a function `mod` that modifies the result
 -- before 'returning' it to the caller.
---
--- Parameters:
---
--- - `cmd[table]`: List of command+arguments (`{"CONFIG", "GET", "appendonly"}`)
---
--- - `mod[function]`: Function that modifies the result.
---
--- - `callback[function]`: Callback.
---
--- - `callback_arg`: Optional argument to pass as the first
---    argument to `callback`.
 --
 -- See `turboredis.Connection:config_get` example usage.
 --
@@ -757,13 +732,6 @@ end
 --
 
 -- Run a command with a callback or a `turbo.async.task`
---
--- Parameters:
---
--- - `cmd[table]`: List of command+arguments. (`{"GET", "foo"}`)
--- - `callback[function]`: Optional callback to call.
--- - `callback_arg`: Optional argument to pass as the first
---   argument to `callback`.
 function turboredis.Connection:run_dual(cmd, callback, callback_arg)
     if callback then
         return self:run(cmd, callback, callback_arg)
@@ -842,17 +810,9 @@ function turboredis.PubSubConnection:read_msg(callback, callback_arg)
     turboredis.read_resp_reply(self.stream, false, callback, callback_arg)
 end
 
--- Start the PUBSUB loop.
+-- Start the subscriber loop.
 --
---
--- Parameters:
---
--- - `callback`: Function to call for each message
---
--- - `callback_arg`: Optional argument to pass as the first argument
---   to `callback`
---
---
+-- See the Pub/Sub example for usage.
 function turboredis.PubSubConnection:start(callback, callback_arg)
     self.callback = callback
     self.callback_arg = callback_arg
