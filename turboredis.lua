@@ -338,6 +338,18 @@ end
 
 -- Read a redis array reply.
 -- Calls `turboredis.read_resp_reply()` on each element.
+--
+-- Parameters:
+--
+-- - `stream[IOStream]`: The IOStream object to use
+--
+-- - `n[int]:` Number of elements in the array reply.
+--
+-- - `callback[function]`: Callback.
+--
+-- - `callback_arg`: Optional argument to pass as the first
+--    argument to `callback`.
+--
 function turboredis.read_resp_array_reply(stream, n, callback, callback_arg)
     turbo.ioloop.instance():add_callback(function ()
         local out = {}
@@ -355,6 +367,19 @@ function turboredis.read_resp_array_reply(stream, n, callback, callback_arg)
 end
 
 -- Read a Redis reply
+--
+-- Parameters:
+--
+-- - `stream[IOStream]`: The IOStream object to use
+--
+-- - `wrap[bool]`: Wether or not to wrap the result in a table (if the reply
+--   is not an error or 'simple string' reply.
+--
+-- - `callback[function]`: Callback.
+--
+-- - `callback_arg`: Optional argument to pass as the first
+--    argument to `callback`.
+--
 function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
     turbo.ioloop.instance():add_callback(function ()
         local part
@@ -648,6 +673,16 @@ function turboredis.Connection:connect(callback, callback_arg)
 end
 
 -- Create a new `Command` and run it.
+--
+-- Parameters:
+--
+-- - `cmd[table]`: List of command+arguments (`{"GET", "FOO"}`)
+--
+-- - `callback[function]`: Callback.
+--
+-- - `callback_arg`: Optional argument to pass as the first
+--    argument to `callback`.
+--
 function turboredis.Connection:run(cmd, callback, callback_arg)
     local command = turboredis.Command:new(cmd, self.stream, {
         purist=self.purist
@@ -655,7 +690,17 @@ function turboredis.Connection:run(cmd, callback, callback_arg)
     return command:execute(callback, callback_arg)
 end
 
--- Run a command without reading the a reply
+-- Run a command without reading the reply
+--
+-- Parameters:
+--
+-- - `cmd[table]`: List of command+arguments (`{"GET", "FOO"}`)
+--
+-- - `callback[function]`: Callback.
+--
+-- - `callback_arg`: Optional argument to pass as the first
+--    argument to `callback`.
+--
 function turboredis.Connection:run_noreply(cmd, callback, callback_arg)
     local command = turboredis.Command:new(cmd, self.stream, {
         purist=self.purist
@@ -663,6 +708,22 @@ function turboredis.Connection:run_noreply(cmd, callback, callback_arg)
     return command:execute_noreply(callback, callback_arg)
 end
 
+-- Run a command with a function `mod` that modifies the result
+-- before 'returning' it to the caller.
+--
+-- Parameters:
+--
+-- - `cmd[table]`: List of command+arguments (`{"CONFIG", "GET", "appendonly"}`)
+--
+-- - `mod[function]`: Function that modifies the result.
+--
+-- - `callback[function]`: Callback.
+--
+-- - `callback_arg`: Optional argument to pass as the first
+--    argument to `callback`.
+--
+-- See `turboredis.Connection:config_get` example usage.
+--
 function turboredis.Connection:run_mod(cmd, mod, callback, callback_arg)
     local command = turboredis.Command:new(cmd, self.stream, {
         purist=self.purist
