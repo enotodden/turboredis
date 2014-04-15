@@ -1,6 +1,6 @@
 -- TurboRedis example.
 --
--- Shows how to use redis within a Turbo application.
+-- Shows how to use TurboRedis within a Turbo application.
 --
 local turbo = require("turbo")
 local turboredis = require("turboredis")
