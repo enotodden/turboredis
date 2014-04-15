@@ -526,10 +526,29 @@ end
 
 
 --## Connection
---
+
 -- The main class that handles connecting and issuing commands.
 
 turboredis.Connection = class("Connection")
+
+-- Create a new connection object, ready to connect to Redis.
+--
+-- Parameters:
+--
+-- - `host[string|nil]`: Redis instance hostname or IP address.
+--   If set to `nil` this defaults to `"127.0.0.1"`
+--
+-- - `port[int]`: Port
+--
+-- - `opts[table]`: Table of options.
+--
+--      - `ioloop`: The ioloop to use, defaults to `turbo.ioloop.instance()`
+--
+--      - `connect_timeout[int]`: The connect timeout in seconds. Defaults to 5.
+--      
+--      - `purist[bool]`: Enable or disable purist mode(no reply parsing).
+--         Defaults to `false`.
+--
 function turboredis.Connection:initialize(host, port, opts)
     opts = opts or {}
     self.host = host or "127.0.0.1"
@@ -564,7 +583,7 @@ end
 -- Connect to Redis
 --
 -- FIXME: This works but looks like sh*t and needs to be re-worked
-function turboredis.Connection:connect(timeout, callback, callback_arg)
+function turboredis.Connection:connect(callback, callback_arg)
     local timeout
     local connect_timeout_ref
     local ctx
@@ -603,10 +622,9 @@ function turboredis.Connection:connect(timeout, callback, callback_arg)
     end
 
     self.ioloop = turbo.ioloop.instance()
-    timeout = (timeout or self.connect_timeout) * 1000 +
-              turbo.util.gettimeofday()
+    timeout = (self.connect_timeout * 1000) + turbo.util.gettimeofday()
     connect_timeout_ref = self.ioloop:add_timeout(timeout,
-                                                   handle_connect_timeout)
+                                                  handle_connect_timeout)
     self.sock, msg = turbo.socket.new_nonblock_socket(self.family,
                                                       turbo.socket.SOCK_STREAM,
                                                       0)
