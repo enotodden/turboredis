@@ -123,7 +123,10 @@ some of the replies from different commands.
   are converted from lists to key-value tables.
 - Results from some commands (`INCRFLOAT`) are converted to numbers.
 
-This behavior can be disabled (purist mode) by setting `turboredis.purist = true`.
+This behavior can be disabled (purist mode) by passing `purist=true` to
+the `turboredis.Connection` constructor.
+
+    con = turboredis.Connection:new("127.0.0.1", 6379, {purist=true})
 
 
 ### Tests:
