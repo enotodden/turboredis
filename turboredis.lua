@@ -545,7 +545,7 @@ turboredis.Connection = class("Connection")
 --      - `ioloop`: The ioloop to use, defaults to `turbo.ioloop.instance()`
 --
 --      - `connect_timeout[int]`: The connect timeout in seconds. Defaults to 5.
---      
+--
 --      - `purist[bool]`: Enable or disable purist mode(no reply parsing).
 --         Defaults to `false`.
 --
@@ -678,6 +678,7 @@ function turboredis.Connection:run_mod(cmd, mod, callback, callback_arg)
     end)
 end
 
+
 --####Dual callback/yield interface.
 --
 -- If the user has not supplied a callback
@@ -693,6 +694,15 @@ end
 --          print(r)
 --      end)
 --
+
+-- Run a command with a callback or a `turbo.async.task`
+--
+-- Parameters:
+--
+-- - `cmd[table]`: List of command+arguments. (`{"GET", "foo"}`)
+-- - `callback[function]`: Optional callback to call.
+-- - `callback_arg`: Optional argument to pass as the first
+--   argument to `callback`.
 function turboredis.Connection:run_dual(cmd, callback, callback_arg)
     if callback then
         return self:run(cmd, callback, callback_arg)
@@ -702,7 +712,11 @@ function turboredis.Connection:run_dual(cmd, callback, callback_arg)
 end
 
 -- The same as `run_dual()`, except that it takes the `mod` argument
--- and passes it on to `run_mod()`
+-- and passes it on to `run_mod()`.
+--
+-- - `mod`: Function that modifies the reply before 'returning' it to the
+--          caller.
+--
 function turboredis.Connection:run_mod_dual(cmd, mod, callback, callback_arg)
     if callback then
         return self:run_mod(cmd, mod, callback, callback_arg)
@@ -712,10 +726,12 @@ function turboredis.Connection:run_mod_dual(cmd, mod, callback, callback_arg)
 end
 
 
--- Dynamically generate functions for all commands in `turboredis.COMMANDS`
+-- Generate functions for all commands in `turboredis.COMMANDS`
 --
 -- This applies to all normal commands except for `CONFIG GET` and
 -- `SUBSCRIBE/UNSUBSCRIBE` pubsub commands.
+--
+-- See http://redis.io for documentation for specific commands.
 --
 for _, v in ipairs(turboredis.COMMANDS) do
     turboredis.Connection[v:lower():gsub(" ", "_")] = function (self, ...)
@@ -740,6 +756,9 @@ for _, v in ipairs(turboredis.COMMANDS) do
     end
 end
 
+-- Override the `CONFIG GET` command to only 'return' the value
+-- of the requested key to the caller.
+--
 function turboredis.Connection:config_get(key, callback, callback_arg)
     return self:run_mod_dual({"CONFIG", "GET", key}, function(v)
         return {v[key]}
@@ -762,6 +781,17 @@ function turboredis.PubSubConnection:read_msg(callback, callback_arg)
     turboredis.read_resp_reply(self.stream, false, callback, callback_arg)
 end
 
+-- Start the PUBSUB loop.
+--
+--
+-- Parameters:
+--
+-- - `callback`: Function to call for each message
+--
+-- - `callback_arg`: Optional argument to pass as the first argument
+--   to `callback`
+--
+--
 function turboredis.PubSubConnection:start(callback, callback_arg)
     self.callback = callback
     self.callback_arg = callback_arg
@@ -796,6 +826,10 @@ function turboredis.PubSubConnection:start(callback, callback_arg)
     end)
 end
 
+-- Generate functions for all commands in `turboredis.PUBSUB_COMMANDS`
+--
+-- See http://redis.io for documentation for specific commands.
+--
 for _, v in ipairs(turboredis.PUBSUB_COMMANDS) do
     turboredis.PubSubConnection[v:lower():gsub(" ", "_")] = function (self, ...)
         local cmd = turboredis.flatten({v:split(" "), ...})
