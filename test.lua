@@ -2032,6 +2032,33 @@ function TestTurboRedis:test_zscan()
 end
 ]]--
 
+
+function TestTurboRedis:test_pipeline()
+    local r
+    local pl = self.con:pipeline()
+    pl:set("foo", "bar")
+    pl:set("bar", "foo")
+    pl:get("foo")
+    pl:get("bar")
+    r = yield(pl:run())
+    assertEquals(#r, 4)
+    assertEquals(r[1][1], true)
+    assertEquals(r[2][1], true)
+    assertEquals(r[3], "bar")
+    assertEquals(r[4], "foo")
+    pl:clear()
+    for i=1, 10 do
+        pl:set("foo" .. tostring(i), "bar")
+    end
+    r = yield(pl:run())
+    assertEquals(#r, 10)
+    for i=1, 10 do
+        r = yield(self.con:get("foo" .. tostring(i)))
+        assertEquals(r, "bar")
+    end
+end
+
+
 -------------------------------------------------------------------------------
 
 TestTurboRedisPubSub = {}
