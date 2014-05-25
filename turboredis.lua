@@ -747,7 +747,7 @@ end
 --
 -- To buffer up commands to run in bulk.
 --
--- Example:
+--### Example:
 --            
 --      local turbo = require("turbo")
 --      local turboredis = require("turboredis")
@@ -775,6 +775,25 @@ end
 --      turbo.ioloop.instance():start()
 --
 --
+--### Important note on replies:
+--
+-- Replies are returned 'in full'. Meaning that the 'returned' value of a
+-- status reply for example is not a boolean, but a table containing
+-- a boolean and the 'message' redis adds for replies.
+-- Strings however that only return a single value behave 'as usual'.
+--
+-- Example:
+--
+--      pl:set("foo", "bar")
+--      replies = yield(pl:run())   -- {{true, "OK"}}
+--      ok = replies[1][1]          -- true
+--      msg = replies[1][2]         -- "OK"
+--      
+--      pl:clear()
+--      pl:get("foo")
+--      replies = yield(pl:run())   -- {"foo"}
+--      foo = replies[1]            -- "foo"
+--
 --
 turboredis.PipeLine = class("Pipeline")
 function turboredis.PipeLine:initialize(con)
@@ -784,35 +803,36 @@ function turboredis.PipeLine:initialize(con)
     self.buf = nil
 end
 
+-- Builds up the buffer of commands, writes it to redis and processes
+-- replies.
 function turboredis.PipeLine:_run(callback, callback_arg)
     self.running = true
     -- Don't re-create the buffer if the user is reusing
     -- this pipeline
     if self.buf == nil then
+        -- FIXME: This should probably be tweaked/configurable
         self.buf = turbo.structs.buffer(128*#self.pending_commands)
     end
     for i, cmdt in ipairs(self.pending_commands) do
         local cmdstr = turboredis.pack(cmdt)
         self.buf:append_luastr_right(cmdstr)
     end
-    self.con.ioloop:add_callback(function () 
-        self.con.stream:write_buffer(self.buf, function ()
-            local replies = {}
-            for i, v in ipairs(self.pending_commands) do
-                local res = yield(task(turboredis.read_resp_reply,
-                    self.con.stream, false))
-                if not self.con.purist then
-                    res = turboredis.format_res(v, res)
-                end
-                replies[#replies+1] = res
+    self.con.stream:write_buffer(self.buf, function ()
+        local replies = {}
+        for i, v in ipairs(self.pending_commands) do
+            local res = yield(task(turboredis.read_resp_reply,
+                self.con.stream, false))
+            if not self.con.purist then
+                res = turboredis.format_res(v, res)
             end
-            self.running = false
-            if callback_arg then
-                callback(callback_arg, replies)
-            else
-                callback(replies)
-            end
-        end)
+            replies[#replies+1] = res
+        end
+        self.running = false
+        if callback_arg then
+            callback(callback_arg, replies)
+        else
+            callback(replies)
+        end
     end)
 end
 
