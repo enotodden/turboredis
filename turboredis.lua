@@ -608,60 +608,22 @@ function turboredis.Connection:initialize(host, port, opts)
     self.purist = opts.purist ~= nil and opts.purist or false
 end
 
-function turboredis.Connection:_connect_done(args)
-    self.connect_timeout_ref = nil
-    self.connect_coctx:set_state(turbo.coctx.states.DEAD)
-    self.connect_coctx:set_arguments(args)
-    self.connect_coctx:finalize_context()
-end
-
-function turboredis.Connection:_handle_connect_timeout()
-    self:_connect_done({false, {err=-1, msg="Connect timeout"}})
-end
-
-function turboredis.Connection:_handle_connect_error(err, strerror)
-    self.ioloop:remove_timeout(self.connect_timeout_ref)
-    self:_connect_done({false, {err=err, msg=strerror}})
-end
-
-function turboredis.Connection:_handle_connect()
-    self.ioloop:remove_timeout(self.connect_timeout_ref)
-    self:_connect_done({true})
-end
-
--- Connect to Redis
---
--- FIXME: This works but looks like sh*t and needs to be re-worked
-function turboredis.Connection:connect(callback, callback_arg)
-    local timeout
-    local connect_timeout_ref
-    local ctx
-
-    if not callback then
-        ctx = turbo.coctx.CoroutineContext:new(self.ioloop)
-        ctx:set_state(turbo.coctx.states.WORKING)
-    end
-
-    local connect_done = function(a1, a2)
-        if callback then
-            if callback_arg then
-                callback(callback_arg, a1, a2)
-            else
-                callback(a1, a2)
-            end
+function turboredis.Connection:_connect(callback, callback_arg)
+    function connect_done(a1, a2)
+        if callback_arg then
+            callback(callback_arg, a1, a2)
         else
-            ctx:set_state(turbo.coctx.states.DEAD)
-            ctx:set_arguments({a1, a2})
-            ctx:finalize_context()
+            callback(a1, a2)
         end
     end
 
     function handle_connect()
         self.ioloop:remove_timeout(self.connect_timeout_ref)
-        connect_done(true)
+        connect_done(true, {msg="OK"})
     end
 
     function handle_connect_timeout()
+        self.ioloop:remove_timeout(self.connect_timeout_ref)
         connect_done(false, {err=-1, msg="Connect timeout"})
     end
 
@@ -679,20 +641,22 @@ function turboredis.Connection:connect(callback, callback_arg)
                                                       0)
     self.stream = turbo.iostream.IOStream:new(self.sock, self.ioloop)
     local rc, msg = self.stream:connect(self.host,
-                                          self.port,
-                                          self.family,
-                                          handle_connect,
-                                          handle_connect_error,
-                                          self)
+                                   self.port,
+                                   self.family,
+                                   handle_connect,
+                                   handle_connect_error,
+                                   self)
     if rc ~= 0 then
-        error("Connect failed")
         handle_connect_error(-1, "Connect failed")
         return -1 --wtf
     end
+end
 
-    if not callback then
-        ctx:set_state(turbo.coctx.states.WAIT_COND)
-        return ctx
+function turboredis.Connection:connect(callback, callback_arg)
+    if callback then
+        return self:_connect(callback, callback_arg)
+    else
+        return task(self._connect, self)
     end
 end
 
@@ -711,8 +675,6 @@ function turboredis.Connection:run_noreply(cmd, callback, callback_arg)
     })
     return command:execute_noreply(callback, callback_arg)
 end
-
-
 
 
 -- Generate functions for all commands in `turboredis.COMMANDS`
