@@ -257,6 +257,12 @@ texinfo_documents = [
 # If true, do not generate a @detailmenu in the "Top" node's menu.
 #texinfo_no_detailmenu = False
 
+html_theme_options = {
+    "github_button": False,
+    "github_banner": True,
+    "github_user": "enotodden",
+    "github_repo": "turboredis"
+}
 
 import alabaster
 
@@ -268,3 +274,5 @@ html_sidebars = {
           'about.html', 'navigation.html', 'searchbox.html', 'donate.html',
       ]
 }
+
+
