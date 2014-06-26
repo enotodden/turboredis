@@ -6,14 +6,22 @@
 TurboRedis
 ======================================
 
-TurboRedis is a Redis library for the blazing fast Turbo web/networking library.
+TurboRedis is a Redis library for the blazing fast Turbo.Lua web/networking library.
+
+
+.. highlight:: lua
+   :linenothreshold: 5
+
+.. literalinclude:: index_hello_world.lua
+
 
 Contents:
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 5
 
    hello_world
+   examples
 
 
 
