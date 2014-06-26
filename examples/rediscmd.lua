@@ -1,7 +1,7 @@
 --
 -- TurboRedis run() example.
 --
--- Shows how use turboredis.Connection:run() to make a very simple command line
+-- Shows how to use turboredis.Connection:run() to make a very simple command line
 -- redis client.
 --
 --
