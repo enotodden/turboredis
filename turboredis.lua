@@ -656,7 +656,7 @@ function turboredis.Connection:connect(callback, callback_arg)
     if callback then
         return self:_connect(callback, callback_arg)
     else
-        return task(self._connect, self)
+        return yield(task(self._connect, self))
     end
 end
 
@@ -702,7 +702,7 @@ for _, v in ipairs(turboredis.COMMANDS) do
         if callback then
             return self:run(cmd, callback, callback_arg)
         else
-            return task(self.run, self, cmd)
+            return yield(task(self.run, self, cmd))
         end
     end
 end
@@ -781,7 +781,7 @@ for _, v in ipairs(turboredis.PUBSUB_COMMANDS) do
         if callback then
             return self:run_noreply(cmd, callback, callback_arg)
         else
-            return task(self.run_noreply, self, cmd)
+            return yield(task(self.run_noreply, self, cmd))
         end
     end
 end
