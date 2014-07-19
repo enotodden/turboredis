@@ -12,6 +12,12 @@ turboredis
 
 ----------
 
+### Documentation
+
+Docs are available on [https://enotodden.github.io/turboredis](https://enotodden.github.io/turboredis).
+
+----------
+
 ### Example:
 
 	local turbo = require("turbo")
