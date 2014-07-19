@@ -2,133 +2,11 @@
 -- TurboRedis
 -- ==========
 --
---### [Redis](http://redis.io) library for [Turbo](https://github.com/kernelsauce/turbo)
+-- Redis (http://redis.io) library for Turbo(https://github.com/kernelsauce/turbo)
 --
--- Source:
---  [http://github.com/enotodden/turboredis](http://github.com/enotodden/turboredis)
+-- Source: http://github.com/enotodden/turboredis
 --
--- Documented source:
---  [http://enotodden.github.io/turboredis](http://enotodden.github.io/turboredis)
---
--- License: __MIT__ (see LICENSE)
-
---### Features
---
---  - Support for most Redis commands
---  - Pub/Sub support
---  - No dependencies other than Turbo and Redis
---  - Everything is in a single file.
---  - Dual turbo.async.task/callback interface for all 'normal' commands
-
---### Get started. Hello world example:
---
---     local turbo = require("turbo")
---     local turboredis = require("turboredis")
---     local yield = coroutine.yield
---
---     turbo.ioloop.instance():add_callback(function ()
---         local redis = turboredis.Connection:new("127.0.0.1", 6379)
---         local r = yield(redis:connect())
---         if not r then
---             print("Could not connect to Redis")
---             return
---         end
---
---         yield(redis:set("hello", "Hello "))
---         yield(redis:set("world", "World!"))
---
---         print("# " .. yield(redis:get("hello")) .. yield(redis:get("world")))
---
---         turbo.ioloop.instance():close()
---     end)
---     turbo.ioloop.instance():start()
---
-
---### PubSub Example:
---
---     local turbo = require("turbo")
---     local turboredis = require("turboredis")
---     local yield = coroutine.yield
---     local ioloop = turbo.ioloop.instance()
---
---     ioloop:add_callback(function ()
---         -- Create a normal redis connection for publishing
---         local pubcon = turboredis.Connection:new("127.0.0.1", 6379)
---
---         -- Create a PubSub Connection for subscribing
---         -- This has the subscriber commands
---         local subcon = turboredis.PubSubConnection:new("127.0.0.1", 6379)
---
---         -- Connect both
---         yield(pubcon:connect())
---         yield(subcon:connect())
---
---         -- Subscribe to the channel 'hello.msgs'
---         yield(subcon:subscribe("hello.msgs"))
---
---         -- Wait for messages.
---         -- After start() is called, no commands other than
---         -- subscribe/unsubscribe commands can be used.
---         subcon:start(function (msg)
---             print("NEW MESSAGE:")
---             print("  Message type: " .. msg.msgtype)
---             print("  Channel: " .. msg.channel)
---             print("  Data: " .. msg.data)
---             print("--")
---
---             -- If the message is 'exit', close the IOLoop
---             if msg.data == "exit" then
---                 ioloop:close()
---             end
---         end)
---
---         -- Publish messages
---         yield(pubcon:publish("hello.msgs", "Hello "))
---
---         ioloop:add_timeout(turbo.util.gettimemonotonic() + 1000, function ()
---             yield(pubcon:publish("hello.msgs", "World!!"))
---         end)
---
---         ioloop:add_timeout(turbo.util.gettimemonotonic() + 2000, function ()
---             yield(pubcon:publish("hello.msgs", "exit"))
---         end)
---     end)
---     ioloop:start()
-
-
---### Dual callback/yield interface.
---
--- TurboRedis supports both callbacks and 'yields' (using turbo.async.task).
---
--- This allows all commands to be called like:
---
---      r = yield(con:get("foo"))
---
--- or with a callback, like:
---
---      con.get("foo", function (r)
---          print(r)
---      end)
---
-
---
--- ------------------
---
-
--- Commonly used parameters:
---
--- - `cmd[table]`: A list of command name + optional sub-command name +
---   arguments.
---   Examples:
---      - `{"GET", "foo"}`
---      - `{"CONFIG", "GET", "appendonly"}`
---
--- - `callback[function]`: Callback that will be called when the function's
---   operation is done. Usually a reply.
---
--- - `callback_arg[any except nil]`: Argument that will be passed as the
---   first argument to the corresponding callback. Should never be set
---   if callback is `nil`.
+-- License: MIT (see LICENSE)
 --
 
 local turbo = require("turbo")
@@ -366,16 +244,15 @@ function turboredis.flatten(t)
     return flat_t
 end
 
---## Redis protocol helpers
+-- Redis protocol helpers
 
 -- Read a redis array reply.
--- Calls `turboredis.read_resp_reply()` on each element.
+-- Calls turboredis.read_resp_reply() on each element.
 --
 -- Parameters:
 --
--- - `stream[IOStream]`: The IOStream object to use
---
--- - `n[int]:` Number of elements in the array reply.
+-- - stream[IOStream]: The IOStream object to use
+-- - n[int]: Number of elements in the array reply.
 --
 function turboredis.read_resp_array_reply(stream, n, callback, callback_arg)
     stream.io_loop:add_callback(function ()
@@ -397,9 +274,8 @@ end
 --
 -- Parameters:
 --
--- - `stream[IOStream]`: The IOStream object to use
---
--- - `wrap[bool]`: Wether or not to wrap the result in a table (if the reply
+-- - stream[IOStream]: The IOStream object to use
+-- - wrap[bool]: Wether or not to wrap the result in a table (if the reply
 --   is not an error or 'simple string' reply.
 --
 function turboredis.read_resp_reply (stream, wrap, callback, callback_arg)
@@ -519,11 +395,10 @@ end
 
 
 
---## Command
+-- ## Command ##
 --
 -- Created with the IOStream instance of the `Connection`
 --
-
 turboredis.Command = class("Command")
 function turboredis.Command:initialize(cmd, stream, opts)
     self.ioloop = turbo.ioloop.instance()
@@ -535,8 +410,8 @@ end
 
 -- Handle a reply from Redis.
 --
--- Calls `_format_res` to format the reply and then the callback passed to
--- `:execute()`
+-- Calls _format_res() to format the reply and then the callback passed to
+-- :execute()
 --
 function turboredis.Command:_handle_reply(res)
     if not self.purist then
@@ -557,10 +432,10 @@ function turboredis.Command:execute(callback, callback_arg)
     end)
 end
 
--- Execute the command, but unlike `:execute()` we don't try to
+-- Execute the command, but unlike :execute() we don't try to
 -- read a reply.
 --
--- This is useful for `SUBSCRIBE/UNSUBSCRIBE` commands which 'replies'
+-- This is useful for SUBSCRIBE/UNSUBSCRIBE commands which 'replies'
 -- through PubSub messages.
 --
 function turboredis.Command:execute_noreply(callback, callback_arg)
@@ -574,29 +449,23 @@ function turboredis.Command:execute_noreply(callback, callback_arg)
 end
 
 
---## Connection
-
+-- ## Connection ##
 -- The main class that handles connecting and issuing commands.
-
+--
 turboredis.Connection = class("Connection")
 
 -- Create a new connection object, ready to connect to Redis.
 --
 -- Parameters:
 --
--- - `host[string|nil]`: Redis instance hostname or IP address.
---   If set to `nil` this defaults to `"127.0.0.1"`
---
--- - `port[int]`: Port
---
--- - `opts[table]`: Table of options.
---
---      - `ioloop`: The ioloop to use, defaults to `turbo.ioloop.instance()`
---
---      - `connect_timeout[int]`: The connect timeout in seconds. Defaults to 5.
---
---      - `purist[bool]`: Enable or disable purist mode(no reply parsing).
---         Defaults to `false`.
+-- - host[string|nil]: Redis instance hostname or IP address.
+--   If set to nil this defaults to "127.0.0.1"
+-- - port[int]: Port
+-- - opts[table]: Table of options.
+--      - ioloop: The ioloop to use, defaults to turbo.ioloop.instance()
+--      - connect_timeout[int]: The connect timeout in seconds. Defaults to 5.
+--      - purist[bool]: Enable or disable purist mode(no reply parsing).
+--         Defaults to false.
 --
 function turboredis.Connection:initialize(host, port, opts)
     opts = opts or {}
@@ -677,10 +546,18 @@ function turboredis.Connection:run_noreply(cmd, callback, callback_arg)
 end
 
 
+function turboredis.Connection:runc(cmd, callback, callback_arg)
+    if callback then
+        return self:run(cmd, callback, callback_arg)
+    else
+        return task(self.run, self, cmd)
+    end
+end
+
 -- Generate functions for all commands in `turboredis.COMMANDS`
 --
 -- This applies to all commands except for
--- `SUBSCRIBE/UNSUBSCRIBE` pubsub commands.
+-- SUBSCRIBE/UNSUBSCRIBE pubsub commands.
 --
 -- See http://redis.io for documentation for specific commands.
 --
@@ -708,7 +585,7 @@ for _, v in ipairs(turboredis.COMMANDS) do
 end
 
 
---## PUBSUB
+-- ## PUBSUB ##
 
 turboredis.PUBSUB_COMMANDS = {
     "SUBSCRIBE",
