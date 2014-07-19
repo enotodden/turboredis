@@ -3,7 +3,7 @@ local turboredis = require("turboredis")
 local yield = coroutine.yield
 
 turbo.ioloop.instance():add_callback(function () 
-	local redis = turboredis.Connection:new("127.0.0.1", 6379)	
+	local redis = turboredis.Connection:new({host="127.0.0.1", port=6379})	
 	local r = yield(redis:connect())
 	if not r then
 		print("Could not connect to Redis")

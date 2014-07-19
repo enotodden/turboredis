@@ -5,11 +5,11 @@ local ioloop = turbo.ioloop.instance()
 
 ioloop:add_callback(function () 
 	-- Create a normal redis connection for publishing
-	local pubcon = turboredis.Connection:new("127.0.0.1", 6379)	
+	local pubcon = turboredis.Connection:new({host="127.0.0.1", port=6379})	
 	
 	-- Create a PubSub Connection for subscribing
 	-- This has the subscriber commands
-	local subcon = turboredis.PubSubConnection:new("127.0.0.1", 6379)
+	local subcon = turboredis.PubSubConnection:new({host="127.0.0.1", port=6379})
 
 	-- Connect both
 	yield(pubcon:connect())
