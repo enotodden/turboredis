@@ -155,3 +155,26 @@ with the new commands, they can still be run using ``turboredis.Connection:runc(
 This can also be useful if using TurboRedis to connect to other software
 that implements the Redis protocol, or proxies with extended functionality.
 
+
+Purist Mode
+-----------
+
+
+TurboRedis tries to make life easier by formatting
+some of the replies from different commands.
+
+
+- Integer replies (``0|1``) from commands like ``EXISTS`` and ``SETNX``
+  are converted to booleans.
+- Results from commands like ``CONFIG GET`` and ``HGETALL`` 
+  are converted from lists to key-value tables.
+- Results from some commands (``INCRFLOAT``) are converted to numbers.
+
+This behavoiour is not very well tested, and can be disabled (purist mode)
+by passing ``purist=true`` to ``turboredis.Connection:new()``.
+
+::
+
+    con = turboredis.Connection:new({purist=true})
+
+
