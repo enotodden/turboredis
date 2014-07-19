@@ -1,0 +1,190 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>TurboRedis &mdash; TurboRedis 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="TurboRedis 0.1 documentation" href="#" />
+    <link rel="next" title="Hello Redis!" href="hello_world.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="hello_world.html" title="Hello Redis!"
+             accesskey="N">next</a> |</li>
+        <li><a href="#">TurboRedis 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="turboredis">
+<h1>TurboRedis<a class="headerlink" href="#turboredis" title="Permalink to this headline">¶</a></h1>
+<p>TurboRedis is a Redis library for the blazing fast
+Turbo.Lua web/networking library.</p>
+<div class="highlight-lua"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre> 1
+ 2
+ 3
+ 4
+ 5
+ 6
+ 7
+ 8
+ 9
+10
+11
+12
+13
+14
+15
+16
+17
+18
+19
+20
+21
+22
+23</pre></div></td><td class="code"><div class="highlight"><pre><span class="kd">local</span> <span class="n">turbo</span> <span class="o">=</span> <span class="nb">require</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">turbo&quot;</span><span class="p">)</span>
+<span class="kd">local</span> <span class="n">turboredis</span> <span class="o">=</span> <span class="nb">require</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">turboredis&quot;</span><span class="p">)</span>
+ 
+<span class="kd">local</span> <span class="n">redis</span> <span class="o">=</span> <span class="n">turboredis</span><span class="p">.</span><span class="n">Connection</span><span class="p">:</span><span class="n">new</span><span class="p">()</span>
+ 
+<span class="kd">local</span> <span class="n">HelloRedisHandler</span> <span class="o">=</span> <span class="n">class</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">RedisHandler&quot;</span><span class="p">,</span> <span class="n">turbo</span><span class="p">.</span><span class="n">web</span><span class="p">.</span><span class="n">RequestHandler</span><span class="p">)</span>
+ 
+<span class="k">function</span> <span class="nf">HelloRedisHandler</span><span class="p">:</span><span class="n">get</span><span class="p">()</span>
+    <span class="kd">local</span> <span class="n">msg</span> <span class="o">=</span> <span class="nb">coroutine.yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">msg&quot;</span><span class="p">))</span>
+    <span class="n">self</span><span class="p">:</span><span class="n">write</span><span class="p">(</span><span class="n">msg</span> <span class="o">..</span> <span class="s2">&quot;</span><span class="se">\n</span><span class="s">&quot;</span><span class="p">)</span>
+<span class="k">end</span>
+ 
+<span class="kd">local</span> <span class="n">app</span> <span class="o">=</span> <span class="n">turbo</span><span class="p">.</span><span class="n">web</span><span class="p">.</span><span class="n">Application</span><span class="p">({</span>
+    <span class="p">{</span><span class="s2">&quot;</span><span class="s">^/&quot;</span><span class="p">,</span> <span class="n">HelloRedisHandler</span><span class="p">}</span>
+<span class="p">})</span>
+<span class="n">app</span><span class="p">:</span><span class="n">listen</span><span class="p">(</span><span class="mi">8888</span><span class="p">)</span>
+ 
+<span class="n">turbo</span><span class="p">.</span><span class="n">ioloop</span><span class="p">.</span><span class="n">instance</span><span class="p">():</span><span class="n">add_callback</span><span class="p">(</span><span class="k">function</span> <span class="p">()</span>
+    <span class="nb">coroutine.yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">connect</span><span class="p">())</span>
+    <span class="nb">coroutine.yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">msg&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">Hello World!!!&quot;</span><span class="p">))</span>
+<span class="k">end</span><span class="p">)</span>
+ 
+<span class="n">turbo</span><span class="p">.</span><span class="n">ioloop</span><span class="p">.</span><span class="n">instance</span><span class="p">():</span><span class="n">start</span><span class="p">()</span>
+</pre></div>
+</td></tr></table></div>
+<p>Contents:</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="hello_world.html">Hello Redis!</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="hello_world.html#huh">Huh?</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="getting_turboredis.html">Getting TurboRedis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">Usage / API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="api.html#loading-turboredis">Loading TurboRedis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#creating-a-redis-connection">Creating a Redis connection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#connecting">Connecting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#executing-commands">Executing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#using-callbacks-instead-of-coroutine-yield">Using callbacks instead of <tt class="docutils literal"><span class="pre">coroutine.yield</span></tt></a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#running-unsupported-commands">Running &#8216;unsupported&#8217; commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="api.html#purist-mode">Purist Mode</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#pub-sub">Pub/Sub</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#github-api-caching">GitHub API Caching</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples.html#command-line-redis-client">Command Line Redis Client</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="#">TurboRedis</a></h1>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="hello_world.html">Hello Redis!</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_turboredis.html">Getting TurboRedis</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">Usage / API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+</ul>
+
+
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2014, Espen Notodden.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.2b1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.6.0</a>
+      
+      |
+      <a href="_sources/index.txt"
+          rel="nofollow">Page source</a></li>
+    </div>
+
+    
+    <a href="https://github.com/enotodden/turboredis" class="github">
+        <img style="position: absolute; top: 0; right: 0; border: 0;" src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub"  class="github"/>
+    </a>
+    
+
+    
+  </body>
+</html>

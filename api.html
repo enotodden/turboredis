@@ -1,0 +1,256 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+  "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    
+    <title>Usage / API &mdash; TurboRedis 0.1 documentation</title>
+    
+    <link rel="stylesheet" href="_static/alabaster.css" type="text/css" />
+    <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+    
+    <script type="text/javascript">
+      var DOCUMENTATION_OPTIONS = {
+        URL_ROOT:    './',
+        VERSION:     '0.1',
+        COLLAPSE_INDEX: false,
+        FILE_SUFFIX: '.html',
+        HAS_SOURCE:  true
+      };
+    </script>
+    <script type="text/javascript" src="_static/jquery.js"></script>
+    <script type="text/javascript" src="_static/underscore.js"></script>
+    <script type="text/javascript" src="_static/doctools.js"></script>
+    <link rel="top" title="TurboRedis 0.1 documentation" href="index.html" />
+    <link rel="next" title="Examples" href="examples.html" />
+    <link rel="prev" title="Getting TurboRedis" href="getting_turboredis.html" />
+   
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9">
+
+  </head>
+  <body>
+    <div class="related">
+      <h3>Navigation</h3>
+      <ul>
+        <li class="right" style="margin-right: 10px">
+          <a href="genindex.html" title="General Index"
+             accesskey="I">index</a></li>
+        <li class="right" >
+          <a href="examples.html" title="Examples"
+             accesskey="N">next</a> |</li>
+        <li class="right" >
+          <a href="getting_turboredis.html" title="Getting TurboRedis"
+             accesskey="P">previous</a> |</li>
+        <li><a href="index.html">TurboRedis 0.1 documentation</a> &raquo;</li> 
+      </ul>
+    </div>  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          <div class="body">
+            
+  <div class="section" id="usage-api">
+<h1>Usage / API<a class="headerlink" href="#usage-api" title="Permalink to this headline">¶</a></h1>
+<div class="section" id="loading-turboredis">
+<h2>Loading TurboRedis<a class="headerlink" href="#loading-turboredis" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-lua"><div class="highlight"><pre><span class="kd">local</span> <span class="n">turbo</span> <span class="o">=</span> <span class="nb">require</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">turbo&quot;</span><span class="p">)</span>
+<span class="kd">local</span> <span class="n">turboredis</span> <span class="o">=</span> <span class="nb">require</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">turboredis&quot;</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="creating-a-redis-connection">
+<h2>Creating a Redis connection<a class="headerlink" href="#creating-a-redis-connection" title="Permalink to this headline">¶</a></h2>
+<p>Creating a new connection to the default host and port:</p>
+<div class="highlight-lua"><div class="highlight"><pre><span class="kd">local</span> <span class="n">redis</span> <span class="o">=</span> <span class="n">turboredis</span><span class="p">.</span><span class="n">Connection</span><span class="p">:</span><span class="n">new</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Setting your own host and/or port:</p>
+<div class="highlight-lua"><div class="highlight"><pre><span class="kd">local</span> <span class="n">redis</span> <span class="o">=</span> <span class="n">turboredis</span><span class="p">.</span><span class="n">Connection</span><span class="p">:</span><span class="n">new</span><span class="p">({</span><span class="n">host</span><span class="o">=</span><span class="s2">&quot;</span><span class="s">myredisbox&quot;</span><span class="p">,</span> <span class="n">port</span><span class="o">=</span><span class="mi">8765</span><span class="p">})</span>
+</pre></div>
+</div>
+<p>Setting just the port:</p>
+<div class="highlight-lua"><div class="highlight"><pre><span class="kd">local</span> <span class="n">redis</span> <span class="o">=</span> <span class="n">turboredis</span><span class="p">.</span><span class="n">Connection</span><span class="p">:</span><span class="n">new</span><span class="p">({</span><span class="n">port</span><span class="o">=</span><span class="mi">8765</span><span class="p">})</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="connecting">
+<h2>Connecting<a class="headerlink" href="#connecting" title="Permalink to this headline">¶</a></h2>
+<div class="highlight-lua"><div class="highlight"><pre><span class="kd">local</span> <span class="n">redis</span> <span class="o">=</span> <span class="n">turboredis</span><span class="p">.</span><span class="n">Connection</span><span class="p">:</span><span class="n">new</span><span class="p">()</span>
+<span class="n">turbo</span><span class="p">.</span><span class="n">ioloop</span><span class="p">.</span><span class="n">instance</span><span class="p">():</span><span class="n">add_callback</span><span class="p">(</span><span class="k">function</span> <span class="p">()</span>
+    <span class="kd">local</span> <span class="n">ok</span> <span class="o">=</span> <span class="n">yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">connect</span><span class="p">())</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span> <span class="k">then</span>
+        <span class="nb">error</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">Coul not connect to Redis&quot;</span><span class="p">)</span>
+    <span class="k">end</span>
+<span class="k">end</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The <tt class="docutils literal"><span class="pre">turboredis.Connection</span></tt> is not automatically connected when created because the
+<tt class="docutils literal"><span class="pre">connect()</span></tt> must be done in the context of Turbo&#8217;s <tt class="docutils literal"><span class="pre">IOLoop</span></tt>.</p>
+<p>Connections have no relationship to eachother and only shares the
+global Turbo <tt class="docutils literal"><span class="pre">IOLoop</span></tt>, so commands can be executed
+in parallel on multiple connections at the same time without problems.</p>
+<p>The default connect timeout is 5 seconds, and can be changed by passing
+the <tt class="docutils literal"><span class="pre">connect_timeout</span></tt> option to the <tt class="docutils literal"><span class="pre">turboredis.Connection:new()</span></tt> :</p>
+<div class="highlight-lua"><div class="highlight"><pre><span class="c1">-- Set connect() timeout to 10 seconds instead of the default</span>
+<span class="kd">local</span> <span class="n">redis</span> <span class="o">=</span> <span class="n">turboredis</span><span class="p">.</span><span class="n">Connection</span><span class="p">:</span><span class="n">new</span><span class="p">({</span><span class="n">connect_timeout</span><span class="o">=</span><span class="mi">10</span><span class="p">})</span>
+<span class="n">turbo</span><span class="p">.</span><span class="n">ioloop</span><span class="p">.</span><span class="n">instance</span><span class="p">():</span><span class="n">add_callback</span><span class="p">(</span><span class="k">function</span> <span class="p">()</span>
+    <span class="kd">local</span> <span class="n">ok</span> <span class="o">=</span> <span class="n">yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">connect</span><span class="p">())</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="n">ok</span> <span class="k">then</span>
+        <span class="nb">error</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">Coul not connect to Redis&quot;</span><span class="p">)</span>
+    <span class="k">end</span>
+<span class="k">end</span><span class="p">)</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="executing-commands">
+<h2>Executing Commands<a class="headerlink" href="#executing-commands" title="Permalink to this headline">¶</a></h2>
+<p>Functions for most of the commands that TurboRedis implements are dynamically
+generated from a list of commands and named with lowercase letters.
+Spaces between command names (subcommands) are replaced by an underscore.</p>
+<p>Example (assuming <tt class="docutils literal"><span class="pre">redis</span></tt> is the variable holding the Redis connection):</p>
+<div class="highlight-lua"><div class="highlight"><pre><span class="n">GET</span> <span class="n">foo</span>             <span class="o">-&gt;</span>    <span class="n">yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">foo&quot;</span><span class="p">))</span>
+
+<span class="n">CONFIG</span> <span class="n">GET</span> <span class="n">port</span>     <span class="o">-&gt;</span>    <span class="n">yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">config_get</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">port&quot;</span><span class="p">))</span>
+
+<span class="n">BITOP</span> <span class="n">OR</span> <span class="n">dst</span> <span class="n">a1</span> <span class="n">a2</span>  <span class="o">-&gt;</span>    <span class="n">yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">bitop_or</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">dst&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">a1&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">a2&quot;</span><span class="p">))</span>
+
+<span class="n">FLUSHDB</span>             <span class="o">-&gt;</span>    <span class="n">yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">flushdb</span><span class="p">())</span>
+</pre></div>
+</div>
+<p>TurboRedis does absolutely no checking on the number of arguments to command
+functions or their validity. This is by choice since some commands have been
+extended in never versions of Redis. This allows for TurboRedis to be used
+with the bleeding edge Redis and older stable versions
+as long as Redis itself does not break backward compatability in some major way.</p>
+<p>All command arguments are converted to strings, so any object that supports being
+converted to a string using the Lua <tt class="docutils literal"><span class="pre">tostring()</span></tt> method can be used as an
+argument.</p>
+</div>
+<div class="section" id="using-callbacks-instead-of-coroutine-yield">
+<h2>Using callbacks instead of <tt class="docutils literal"><span class="pre">coroutine.yield</span></tt><a class="headerlink" href="#using-callbacks-instead-of-coroutine-yield" title="Permalink to this headline">¶</a></h2>
+<p>All command functions can be &#8216;called&#8217; in 2 ways. With coroutine.yield or
+with a callback and optional callback argument.</p>
+<p>If no callback is specified, TurboRedis returns a <tt class="docutils literal"><span class="pre">turbo.async.task</span></tt> for
+yielding.</p>
+<p>Example, <tt class="docutils literal"><span class="pre">GET</span></tt> with and without callback:</p>
+<div class="highlight-lua"><div class="highlight"><pre><span class="kd">local</span> <span class="n">val</span> <span class="o">=</span> <span class="n">yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">foo&quot;</span><span class="p">))</span>
+<span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">Value is: &quot;</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+</pre></div>
+</div>
+<div class="highlight-lua"><div class="highlight"><pre><span class="n">redis</span><span class="p">:</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">foo&quot;</span><span class="p">,</span> <span class="k">function</span> <span class="p">(</span><span class="n">val</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">Value is: &quot;</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+<span class="k">end</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>A user-defined callback argument can also be passed as the last argument
+to command functions. The callback function will then be called with this
+value as it&#8217;s first argument.</p>
+<div class="highlight-lua"><div class="highlight"><pre><span class="n">redis</span><span class="p">:</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">foo&quot;</span><span class="p">,</span> <span class="k">function</span> <span class="p">(</span><span class="n">foo</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">FOO&quot;</span><span class="p">,</span> <span class="n">foo</span><span class="p">)</span>
+    <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;</span><span class="s">Value is:&quot;</span><span class="p">,</span> <span class="n">val</span><span class="p">)</span>
+<span class="k">end</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">bar&quot;</span><span class="p">)</span> <span class="c1">-- &lt;- Passing &quot;bar&quot; as the callback argument</span>
+</pre></div>
+</div>
+</div>
+<div class="section" id="running-unsupported-commands">
+<h2>Running &#8216;unsupported&#8217; commands<a class="headerlink" href="#running-unsupported-commands" title="Permalink to this headline">¶</a></h2>
+<p>If new commands are added and your version of TurboRedis is not updated
+with the new commands, they can still be run using <tt class="docutils literal"><span class="pre">turboredis.Connection:runc()</span></tt></p>
+<div class="highlight-lua"><div class="highlight"><pre><span class="n">x</span> <span class="o">=</span> <span class="n">yield</span><span class="p">(</span><span class="n">redis</span><span class="p">:</span><span class="n">runc</span><span class="p">({</span><span class="s2">&quot;</span><span class="s">GET&quot;</span><span class="p">,</span> <span class="s2">&quot;</span><span class="s">foo&quot;</span><span class="p">}))</span>
+</pre></div>
+</div>
+<p>This can also be useful if using TurboRedis to connect to other software
+that implements the Redis protocol, or proxies with extended functionality.</p>
+</div>
+<div class="section" id="purist-mode">
+<h2>Purist Mode<a class="headerlink" href="#purist-mode" title="Permalink to this headline">¶</a></h2>
+<p>TurboRedis tries to make life easier by formatting
+some of the replies from different commands.</p>
+<ul class="simple">
+<li>Integer replies (<tt class="docutils literal"><span class="pre">0|1</span></tt>) from commands like <tt class="docutils literal"><span class="pre">EXISTS</span></tt> and <tt class="docutils literal"><span class="pre">SETNX</span></tt>
+are converted to booleans.</li>
+<li>Results from commands like <tt class="docutils literal"><span class="pre">CONFIG</span> <span class="pre">GET</span></tt> and <tt class="docutils literal"><span class="pre">HGETALL</span></tt>
+are converted from lists to key-value tables.</li>
+<li>Results from some commands (<tt class="docutils literal"><span class="pre">INCRFLOAT</span></tt>) are converted to numbers.</li>
+</ul>
+<p>This behavoiour is not very well tested, and can be disabled (purist mode)
+by passing <tt class="docutils literal"><span class="pre">purist=true</span></tt> to <tt class="docutils literal"><span class="pre">turboredis.Connection:new()</span></tt>.</p>
+<div class="highlight-lua"><div class="highlight"><pre><span class="n">con</span> <span class="o">=</span> <span class="n">turboredis</span><span class="p">.</span><span class="n">Connection</span><span class="p">:</span><span class="n">new</span><span class="p">({</span><span class="n">purist</span><span class="o">=</span><span class="kc">true</span><span class="p">})</span>
+</pre></div>
+</div>
+</div>
+</div>
+
+
+          </div>
+        </div>
+      </div>
+      <div class="sphinxsidebar">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="index.html">TurboRedis</a></h1>
+
+
+
+
+
+
+<h3>Navigation</h3>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="hello_world.html">Hello Redis!</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_turboredis.html">Getting TurboRedis</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="">Usage / API</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#loading-turboredis">Loading TurboRedis</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#creating-a-redis-connection">Creating a Redis connection</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#connecting">Connecting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#executing-commands">Executing Commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#using-callbacks-instead-of-coroutine-yield">Using callbacks instead of <tt class="docutils literal"><span class="pre">coroutine.yield</span></tt></a></li>
+<li class="toctree-l2"><a class="reference internal" href="#running-unsupported-commands">Running &#8216;unsupported&#8217; commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#purist-mode">Purist Mode</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Examples</a></li>
+</ul>
+
+
+<div id="searchbox" style="display: none">
+  <h3>Quick search</h3>
+    <form class="search" action="search.html" method="get">
+      <input type="text" name="q" />
+      <input type="submit" value="Go" />
+      <input type="hidden" name="check_keywords" value="yes" />
+      <input type="hidden" name="area" value="default" />
+    </form>
+    <p class="searchtip" style="font-size: 90%">
+    Enter search terms or a module, class or function name.
+    </p>
+</div>
+<script type="text/javascript">$('#searchbox').show(0);</script>
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2014, Espen Notodden.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 1.2b1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.6.0</a>
+      
+      |
+      <a href="_sources/api.txt"
+          rel="nofollow">Page source</a></li>
+    </div>
+
+    
+    <a href="https://github.com/enotodden/turboredis" class="github">
+        <img style="position: absolute; top: 0; right: 0; border: 0;" src="http://s3.amazonaws.com/github/ribbons/forkme_right_darkblue_121621.png" alt="Fork me on GitHub"  class="github"/>
+    </a>
+    
+
+    
+  </body>
+</html>
