@@ -6,7 +6,7 @@
 TurboRedis
 ======================================
 
-TurboRedis is an asynchronous Redis library for the blazing fast 
+TurboRedis is a Redis library for the blazing fast 
 Turbo.Lua web/networking library.
 
 
