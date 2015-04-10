@@ -508,6 +508,11 @@ function turboredis.Connection:_connect(callback, callback_arg)
     self.sock, msg = turbo.socket.new_nonblock_socket(self.family,
                                                       turbo.socket.SOCK_STREAM,
                                                       0)
+    if self.sock == -1 then
+        handle_connect_error(-1, "Create socket failed:" .. msg)
+        return -1
+    end
+
     self.stream = turbo.iostream.IOStream:new(self.sock, self.ioloop)
     local rc, msg = self.stream:connect(self.host,
                                    self.port,
