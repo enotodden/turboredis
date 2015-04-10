@@ -503,7 +503,7 @@ function turboredis.Connection:_connect(callback, callback_arg)
 
     self.ioloop = turbo.ioloop.instance()
     timeout = (self.connect_timeout * 1000) + turbo.util.gettimeofday()
-    connect_timeout_ref = self.ioloop:add_timeout(timeout,
+    self.connect_timeout_ref = self.ioloop:add_timeout(timeout,
                                                   handle_connect_timeout)
     self.sock, msg = turbo.socket.new_nonblock_socket(self.family,
                                                       turbo.socket.SOCK_STREAM,
