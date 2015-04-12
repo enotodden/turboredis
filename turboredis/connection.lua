@@ -5,7 +5,7 @@ local yield = coroutine.yield
 local task = turbo.async.task
 local util = require("turboredis.util")
 local Command = require("turboredis.command")
-
+local PipeLine = require("turboredis.pipeline")
 local COMMANDS = require("turboredis.commands")
 
 -- ## Connection ##
@@ -138,6 +138,10 @@ function Connection:runc(cmd, callback, callback_arg)
     else
         return task(self.run, self, cmd)
     end
+end
+
+function Connection:pipeline()
+    return PipeLine:new(self)
 end
 
 -- Generate functions for all commands in `COMMANDS`
