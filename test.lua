@@ -1315,7 +1315,7 @@ if not options.fast then
         assert(r)
         r = yield(self.con:get("foo"))
         assertEquals(r, "bar")
-        ffi.C.sleep(2)
+        ffi.C.sleep(3)
         r = yield(self.con:get("foo"))
         assertEquals(r, nil)
     end
