@@ -474,6 +474,7 @@ function turboredis.Connection:initialize(host, port, opts)
     self.family = 2
     self.ioloop = opts.ioloop or turbo.ioloop.instance()
     self.connect_timeout = opts.connect_timeout or 5
+    self.disconnect_timeout = opts.disconnect_timeout or 5
     self.purist = opts.purist ~= nil and opts.purist or false
 end
 
@@ -503,11 +504,16 @@ function turboredis.Connection:_connect(callback, callback_arg)
 
     self.ioloop = turbo.ioloop.instance()
     timeout = (self.connect_timeout * 1000) + turbo.util.gettimeofday()
-    connect_timeout_ref = self.ioloop:add_timeout(timeout,
+    self.connect_timeout_ref = self.ioloop:add_timeout(timeout,
                                                   handle_connect_timeout)
     self.sock, msg = turbo.socket.new_nonblock_socket(self.family,
                                                       turbo.socket.SOCK_STREAM,
                                                       0)
+    if self.sock == -1 then
+        handle_connect_error(-1, "Create socket failed:" .. msg)
+        return -1
+    end
+
     self.stream = turbo.iostream.IOStream:new(self.sock, self.ioloop)
     local rc, msg = self.stream:connect(self.host,
                                    self.port,
@@ -527,6 +533,41 @@ function turboredis.Connection:connect(callback, callback_arg)
     else
         return task(self._connect, self)
     end
+end
+
+function turboredis.Connection:_disconnect(callback, callback_arg)
+    function disconnect_done(a1, a2)
+        if callback_arg then
+            callback(callback_arg, a1, a2)
+        else
+            callback(a1, a2)
+        end
+    end
+
+    function handle_disconnect()
+        self.ioloop:remove_timeout(self.disconnect_timeout_ref)
+        disconnect_done(true, {msg="OK"})
+    end
+
+    function handle_disconnect_timeout()
+        self.ioloop:remove_timeout(self.disconnect_timeout_ref)
+        disconnect_done(false, {err=-1, msg="Disconnect timeout"})
+    end
+
+    function handle_disconnect_error(err, strerror)
+        self.ioloop:remove_timeout(self.disconnect_timeout_ref)
+        disconnect_done(false, {err=err, msg=strerror})
+    end
+
+    self.ioloop = turbo.ioloop.instance()
+    timeout = (self.disconnect_timeout * 1000) + turbo.util.gettimeofday()
+    self.connect_timeout_ref = self.ioloop:add_timeout(timeout,
+                                                  handle_disconnect_timeout)
+    self.stream:close()
+end
+
+function turboredis.Connection:disconnect()
+    task(self._disconnect, self)
 end
 
 -- Create a new `Command` and run it.
