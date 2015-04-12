@@ -1,3 +1,5 @@
+### NOTE: turboredis will be getting an overhaul and might break backward compatability as a result. Please use the v0.1 branch.
+
 turboredis
 ===========
 
