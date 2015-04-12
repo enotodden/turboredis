@@ -97,6 +97,11 @@ function TestTurboRedis:setUp()
 end
 
 function TestTurboRedis:tearDown()
+    local r
+    r = yield(self.con:disconnect())
+    assert(r)
+    r = yield(self.con2:disconnect())
+    assert(r)
 end
 
 
@@ -2061,6 +2066,11 @@ function TestTurboRedisPubSub:done()
 end
 
 function TestTurboRedisPubSub:tearDown()
+    local r
+    r = yield(self.con:disconnect())
+    assert(r)
+    r = yield(self.pcon:disconnect())
+    assert(r)
 end
 
 function TestTurboRedisPubSub:test_psubscribe()

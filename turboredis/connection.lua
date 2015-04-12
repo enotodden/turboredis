@@ -33,6 +33,7 @@ function Connection:initialize(host, port, opts)
     self.family = 2
     self.ioloop = opts.ioloop or turbo.ioloop.instance()
     self.connect_timeout = opts.connect_timeout or 5
+    self.disconnect_timeout = opts.disconnect_timeout or 5
     self.purist = opts.purist ~= nil and opts.purist or false
 end
 
@@ -67,6 +68,11 @@ function Connection:_connect(callback, callback_arg)
     self.sock, msg = turbo.socket.new_nonblock_socket(self.family,
                                                       turbo.socket.SOCK_STREAM,
                                                       0)
+    if self.sock == -1 then
+        handle_connect_error(-1, msg)
+        return -1
+    end
+
     self.stream = turbo.iostream.IOStream:new(self.sock, self.ioloop)
     local rc, msg = self.stream:connect(self.host,
                                    self.port,
@@ -80,11 +86,32 @@ function Connection:_connect(callback, callback_arg)
     end
 end
 
+
 function Connection:connect(callback, callback_arg)
     if callback then
         return self:_connect(callback, callback_arg)
     else
         return task(self._connect, self)
+    end
+end
+
+function Connection:_disconnect(callback, callback_arg)
+    function handle_disconnect()
+        if callback_arg then
+            callback(callback_arg, true)
+        else
+            callback(true)
+        end
+    end
+    self.stream:set_close_callback(handle_disconnect, self)
+    self.stream:close()
+end
+
+function Connection:disconnect(callback, callback_arg)
+    if callback then
+        return self:_disconnect(callback, callback_arg)
+    else
+        return task(self._disconnect, self)
     end
 end
 
