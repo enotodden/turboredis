@@ -23,8 +23,6 @@ Connection = class("Connection")
 -- - opts[table]: Table of options.
 --      - ioloop: The ioloop to use, defaults to turbo.ioloop.instance()
 --      - connect_timeout[int]: The connect timeout in seconds. Defaults to 5.
---      - purist[bool]: Enable or disable purist mode(no reply parsing).
---         Defaults to false.
 --
 function Connection:initialize(host, port, opts)
     opts = opts or {}
@@ -33,8 +31,6 @@ function Connection:initialize(host, port, opts)
     self.family = 2
     self.ioloop = opts.ioloop or turbo.ioloop.instance()
     self.connect_timeout = opts.connect_timeout or 5
-    self.disconnect_timeout = opts.disconnect_timeout or 5
-    self.purist = opts.purist ~= nil and opts.purist or false
 end
 
 function Connection:_connect(callback, callback_arg)
@@ -117,17 +113,13 @@ end
 
 -- Create a new `Command` and run it.
 function Connection:run(cmd, callback, callback_arg)
-    local command = Command:new(cmd, self.stream, {
-        purist=self.purist
-    })
+    local command = Command:new(cmd, self.stream, {})
     return command:execute(callback, callback_arg)
 end
 
 -- Run a command without reading the reply
 function Connection:run_noreply(cmd, callback, callback_arg)
-    local command = Command:new(cmd, self.stream, {
-        purist=self.purist
-    })
+    local command = Command:new(cmd, self.stream, {})
     return command:execute_noreply(callback, callback_arg)
 end
 

@@ -15,6 +15,7 @@ local turboredis = require("turboredis")
 local yield = coroutine.yield
 local ffi = require("ffi")
 local os = require("os")
+local dump = turbo.log.dump
 ffi.cdef([[
 unsigned int sleep(unsigned int seconds);
 ]])
@@ -249,7 +250,7 @@ end
 
 function TestTurboRedis:test_client_list()
     local r
-    r = yield(self.con:client_list())
+    r = turboredis.util.parse_client_list(yield(self.con:client_list()))
     assertEquals(type(r), "table")
     assert(#r >= 1)
     assert(type(r[1].fd) == "number")
@@ -275,7 +276,11 @@ end
 function TestTurboRedis:test_config_get()
     local r
     r = yield(self.con:config_get("port"))
-    assertEquals(r, tostring(self.con.port))
+    assert(r)
+    assertEquals(r[1], "port")
+    assertEquals(r[2], tostring(self.con.port))
+    r = turboredis.util.from_kvlist(r)
+    assertEquals(r["port"], tostring(self.con.port))
 end
 
 if options.include_unsupported then
@@ -286,11 +291,13 @@ end
 
 function TestTurboRedis:test_config_set()
     local r
-    local old_appendonly = yield(self.con:config_get("appendonly"))
+    local old_appendonly = turboredis.util.from_kvlist(yield(
+        self.con:config_get("appendonly")))["appendonly"]
     local new_appendonly = old_appendonly and "yes" or "no"
     r = yield(self.con:config_set("appendonly", new_appendonly))
     assert(r)
-    r = yield(self.con:config_get("appendonly"))
+    r = turboredis.util.from_kvlist(
+        yield(self.con:config_get("appendonly")))["appendonly"]
     assertEquals(r, new_appendonly)
     r = yield(self.con:config_set("appendonly", old_appendonly))
     assert(r)
@@ -433,9 +440,9 @@ function TestTurboRedis:test_exists()
     r = yield(self.con:get("foo"))
     assertEquals(r, "bar")
     r = yield(self.con:exists("foo"))
-    assertEquals(r, true)
+    assertEquals(r, 1)
     r = yield(self.con:exists("abc"))
-    assert(not r)
+    assertEquals(r, 0)
 end
 
 if not options.fast then
@@ -563,13 +570,13 @@ end
 function TestTurboRedis:test_hexists()
     local r
     r = yield(self.con:hset("foohash", "foo", "bar"))
-    assert(r)
+    assertEquals(r, 1)
     r = yield(self.con:hexists("foohash", "foo"))
-    assert(r)
+    assertEquals(r, 1)
     r = yield(self.con:hdel("foohash", "foo"))
-    assert(r)
+    assertEquals(r, 1)
     r = yield(self.con:hexists("foohash", "foo"))
-    assert(not r)
+    assertEquals(r, 0)
 end
 
 function TestTurboRedis:test_hget()
@@ -583,15 +590,17 @@ end
 function TestTurboRedis:test_hgetall()
     local r
     r = yield(self.con:hset("foohash", "foo", "bar"))
-    assert(r)
+    assertEquals(r, 1)
     r = yield(self.con:hset("foohash", "bar", "foo"))
-    assert(r)
+    assertEquals(r, 1)
     r = yield(self.con:hgetall("foohash"))
+    assertItemsEquals(r, {"foo", "bar", "bar", "foo"})
+    r = turboredis.util.from_kvlist(r)
     for i, v in ipairs(r) do
         if v == "foo" then
-            assert(r[i+1] == "bar")
+            assertEquals(r[i+1], "bar")
         elseif v == "bar" then
-            assert(r[i+1] == "foo")
+            assertEquals(r[i+1], "foo")
         end
     end
 end
@@ -675,7 +684,7 @@ function TestTurboRedis:test_hsetnx()
     r = yield(self.con:hget("foohash", "foo"))
     assertEquals(r, "bar")
     r = yield(self.con:hsetnx("foohash", "foo", "test"))
-    assert(not r)
+    assertEquals(r, 0)
     r = yield(self.con:hget("foohash", "foo"))
     assertEquals(r, "bar")
 end
@@ -703,7 +712,7 @@ end
 function TestTurboRedis:test_incrby()
     local r
     r = yield(self.con:set("foo", 40))
-    assert(r)
+    assertEquals(r, true)
     r = yield(self.con:incrby("foo", 2))
     assertEquals(r,  42)
     r = yield(self.con:get("foo"))
@@ -713,9 +722,9 @@ end
 function TestTurboRedis:test_incrbyfloat()
     local r
     r = yield(self.con:set("foo", 40.3))
-    assert(r)
+    assertEquals(r, true)
     r = yield(self.con:incrbyfloat("foo", 1.7))
-    assertEquals(r, 42)
+    assertEquals(r, "42")
     r = yield(self.con:get("foo"))
     assertEquals(r, "42")
 end
@@ -906,10 +915,9 @@ end
 function TestTurboRedis:test_msetnx()
     local r
     r = yield(self.con:mset("foo", "bar", "hello", "world"))
-    assert(r)
+    assertEquals(r, true)
     r = yield(self.con:msetnx("foo", "bar", "Hello", "world"))
-    assert(not r)
-
+    assertEquals(r, 0)
 end
 
 function TestTurboRedis:test_multi()
@@ -1096,13 +1104,13 @@ end
 function TestTurboRedis:test_renamenx()
     local r
     r = yield(self.con:set("foo", "BAR"))
-    assert(r)
+    assertEquals(r, true)
     r = yield(self.con:set("bar", "FOO"))
-    assert(r)
+    assertEquals(r, true)
     r = yield(self.con:renamenx("foo", "bar"))
-    assert(not r)
+    assertEquals(r, 0)
     r = yield(self.con:renamenx("foo", "foobar"))
-    assert(r)
+    assertEquals(r, 1)
     r = yield(self.con:get("foo"))
     assertEquals(r, nil)
     r = yield(self.con:get("foobar"))
@@ -1329,13 +1337,13 @@ end
 function TestTurboRedis:test_setnx()
     local r
     r = yield(self.con:set("foo", "bar"))
-    assert(r)
+    assertEquals(r, true)
     r = yield(self.con:setnx("foo", "foobar"))
-    assert(not r)
+    assertEquals(r, 0)
     r = yield(self.con:get("foo"))
     assertEquals(r, "bar")
     r = yield(self.con:setnx("bar", "foobar"))
-    assert(r)
+    assertEquals(r, 1)
     r = yield(self.con:get("bar"))
     assertEquals(r, "foobar")
 end
@@ -1399,9 +1407,9 @@ function TestTurboRedis:test_sismember()
     r = yield(self.con:sadd("fooset", "bar"))
     assertEquals(r, 1)
     r = yield(self.con:sismember("fooset", "foo"))
-    assertEquals(r, true)
+    assertEquals(r, 1)
     r = yield(self.con:sismember("fooset", "foobar"))
-    assertEquals(r, false)
+    assertEquals(r, 0)
 end
 
 if options.include_unsupported then

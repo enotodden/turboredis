@@ -6,7 +6,6 @@ local task = turbo.async.task
 local COMMANDS = require("turboredis.commands")
 local util = require("turboredis.util")
 local resp = require("turboredis.resp")
-local rf = require("turboredis.reply_formatting")
 
 -- ## Command ##
 --
@@ -18,18 +17,11 @@ function Command:initialize(cmd, stream, opts)
     self.cmd = cmd
     self.cmdstr = resp.pack(cmd)
     self.stream = stream
-    self.purist = opts.purist ~= nil and opts.purist or false
 end
 
 -- Handle a reply from Redis.
 --
--- Calls rf.format_res() to format the reply and then the callback passed to
--- :execute()
---
 function Command:_handle_reply(res)
-    if not self.purist then
-        res = rf.format_res(self.cmd, res)
-    end
     if self.callback_arg then
         self.callback(self.callback_arg, unpack(res))
     else

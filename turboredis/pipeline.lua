@@ -4,7 +4,6 @@ local ffi = require("ffi")
 local yield = coroutine.yield
 local task = turbo.async.task
 local util = require("turboredis.util")
-local rf = require("turboredis.reply_formatting")
 local resp = require("turboredis.resp")
 local COMMANDS = require("turboredis.commands")
 
@@ -86,9 +85,6 @@ function PipeLine:_run(callback, callback_arg)
         for i, v in ipairs(self.pending_commands) do
             local res = yield(task(resp.read_resp_reply,
                 self.con.stream, false))
-            if not self.con.purist then
-                res = rf.format_res(v, res)
-            end
             replies[#replies+1] = res
         end
         self.running = false
