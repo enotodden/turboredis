@@ -112,23 +112,30 @@ function Connection:disconnect(callback, callback_arg)
 end
 
 -- Create a new `Command` and run it.
-function Connection:run(cmd, callback, callback_arg)
+function Connection:_run(cmd, callback, callback_arg)
     local command = Command:new(cmd, self.stream, {})
     return command:execute(callback, callback_arg)
 end
 
 -- Run a command without reading the reply
-function Connection:run_noreply(cmd, callback, callback_arg)
+function Connection:_run_noreply(cmd, callback, callback_arg)
     local command = Command:new(cmd, self.stream, {})
     return command:execute_noreply(callback, callback_arg)
 end
 
-
-function Connection:runc(cmd, callback, callback_arg)
+function Connection:cmd(cmd, callback, callback_arg)
     if callback then
-        return self:run(cmd, callback, callback_arg)
+        return self:_run(cmd, callback, callback_arg)
     else
-        return task(self.run, self, cmd)
+        return task(self._run, self, cmd)
+    end
+end
+
+function Connection:cmd_noreply(cmd, callback, callback_arg)
+    if callback then
+        return self:_run_noreply(cmd, callback, callback_arg)
+    else
+        return task(self._run_noreply, self, cmd)
     end
 end
 
@@ -159,9 +166,9 @@ for _, v in ipairs(COMMANDS) do
         end
 
         if callback then
-            return self:run(cmd, callback, callback_arg)
+            return self:_run(cmd, callback, callback_arg)
         else
-            return task(self.run, self, cmd)
+            return task(self._run, self, cmd)
         end
     end
 end

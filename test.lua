@@ -106,6 +106,14 @@ function TestTurboRedis:tearDown()
 end
 
 
+function TestTurboRedis:test_plaincmd()
+    local r
+    r = yield(self.con:cmd({"SET", "foo", "bar"}))
+    assertEquals(r, true)
+    r = yield(self.con:cmd({"GET", "foo"}))
+    assertEquals(r, "bar")
+end
+
 
 --- Test by command
 

@@ -128,6 +128,13 @@ function PipeLine:clear()
     self.pending_commands = {}
 end
 
+function PipeLine:cmd(cmd)
+    if self.running then
+        error("Pipeline running")
+    end
+    self.pending_commands[#self.pending_commands+1] = cmd
+end
+
 -- Generate functions for all commands in `turboredis.COMMANDS` just like
 -- turboredis.Connection().
 --

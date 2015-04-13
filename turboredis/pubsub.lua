@@ -79,9 +79,9 @@ for _, v in ipairs(PUBSUB_COMMANDS) do
             cmd[#cmd] = nil
         end
         if callback then
-            return self:run_noreply(cmd, callback, callback_arg)
+            return self:_run_noreply(cmd, callback, callback_arg)
         else
-            return task(self.run_noreply, self, cmd)
+            return task(self._run_noreply, self, cmd)
         end
     end
 end
