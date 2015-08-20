@@ -1,4 +1,4 @@
-### NOTE: turboredis will be getting an overhaul and might break backward compatability as a result. Please use the v0.1 branch.
+### UNMAINTAINED: No new development or fixes will be done on turboredis in the near future. I simply do not have the time. See the v0.1 branch for a semi-stable version.
 
 turboredis
 ===========
